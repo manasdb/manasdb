@@ -1,0 +1,79 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so we can merge branches later
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Project (Syntax & Compilation Check)
+        run: npm run build
+
+      - name: Run Test Suites (Random, Features, E2E)
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: npm run test:all
+
+      - name: Auto-Merge Develop -> Main
+        # Only run this step if we are pushing to develop and tests succeeded
+        if: github.ref == 'refs/heads/develop' && success()
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git merge develop --no-edit
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish to NPM
+    needs: build-and-test
+    # Only run the publish job if the push was natively to the main branch
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          registry-url: "https://registry.npmjs.org/"
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Project
+        run: npm run build
+
+      - name: Publish Package to NPM
+        run: npm publish --access public
+        env:
+          # This connects npm publish to the NPM registry using your secret token
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
