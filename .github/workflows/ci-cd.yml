@@ -5,6 +5,7 @@ on:
     branches:
       - develop
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -50,8 +51,8 @@ jobs:
   publish:
     name: Publish to NPM
     needs: build
-    # Only run the publish job if the push was natively to the main branch
-    if: github.ref == 'refs/heads/main'
+    # Run the publish job if the push was natively to the main branch or triggered manually
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
