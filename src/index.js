@@ -119,7 +119,7 @@ class ManasDB {
 
       let dimensionTarget = 384;
       try {
-        const reg = (await import('./utils/ModelRegistry.js')).default;
+        const reg = (await Promise.resolve(require('./utils/ModelRegistry.js'))).default;
         const d   = reg.getDimensions(this.modelConfig.model || this.modelConfig.source);
         if (d) dimensionTarget = d;
       } catch (_) {}
@@ -358,7 +358,7 @@ class ManasDB {
       if (profile === 'speed')    targetDims = 128;
       else if (profile === 'balanced') targetDims = 512;
       else if (profile === 'accuracy') {
-        const reg = (await import('./utils/ModelRegistry.js')).default;
+        const reg = (await Promise.resolve(require('./utils/ModelRegistry.js'))).default;
         const d   = reg.getDimensions(this.modelConfig.model || this.modelConfig.source);
         if (d) targetDims = d;
       }
@@ -568,7 +568,7 @@ class ManasDB {
     if (baseProfile === 'speed')    targetDims = 128;
     else if (baseProfile === 'balanced') targetDims = 512;
     else if (baseProfile === 'accuracy') {
-      const reg = (await import('./utils/ModelRegistry.js')).default;
+      const reg = (await Promise.resolve(require('./utils/ModelRegistry.js'))).default;
       const d   = reg.getDimensions(this.modelConfig.model || this.modelConfig.source);
       if (d) targetDims = d;
     }
@@ -810,7 +810,7 @@ class ManasDB {
 
       let vecMap = {};
       if (vecDocIds.length > 0) {
-        const { ObjectId } = (await import('mongodb'));
+        const { ObjectId } = (await Promise.resolve(require('mongodb')));
         const vecDocs = await vectorsCollection.find(
           { _id: { $in: vecDocIds } },
           { projection: { _id: 1, vector: 1, vector_full: 1 } }
@@ -884,7 +884,7 @@ class ManasDB {
       //   Instead of storing duplicated full text in the parent document,
       //   we query all chunks sharing the same document_id and merge them sorted on-the-fly.
       // ══════════════════════════════════════════════════════════════════════
-      const { ObjectId } = (await import('mongodb'));
+      const { ObjectId } = (await Promise.resolve(require('mongodb')));
       const parentBestScore    = {};
       const parentMatchedChunk = {};
       const parentSectionTitle = {};
@@ -1011,11 +1011,11 @@ class ManasDB {
 
     let cleanedQuery = query;
     if (this.piiShield.enabled) {
-      const PIIFilter = (await import('./utils/PIIFilter.js')).default;
+      const PIIFilter = (await Promise.resolve(require('./utils/PIIFilter.js'))).default;
       cleanedQuery = PIIFilter.redact(query);
     }
 
-    const MemoryEngine = (await import('./core/memory-engine.js')).default;
+    const MemoryEngine = (await Promise.resolve(require('./core/memory-engine.js'))).default;
     const extracted    = MemoryEngine.extractTags(cleanedQuery);
     const tags         = extracted ? extracted.keywords : [];
 
@@ -1061,7 +1061,7 @@ class ManasDB {
       parentAllScores[pidStr].push({ text: doc.text, sectionTitle: doc.sectionTitle || '', score: 1.0, cosineScore: 1.0 });
     }
 
-    const { ObjectId } = (await import('mongodb'));
+    const { ObjectId } = (await Promise.resolve(require('mongodb')));
     const parentObjectIds = Array.from(parentIds).slice(0, limit).map(id => new ObjectId(id));
       
     // Dynamically stitch full document text
