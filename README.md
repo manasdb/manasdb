@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/ManasDB-v0.1.0-blueviolet?style=for-the-badge" />
+<a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/v/@manasdb/core?style=for-the-badge&logo=npm" alt="NPM Version" /></a>
 <img src="https://img.shields.io/badge/License-BSL%201.1-orange?style=for-the-badge" />
 <img src="https://img.shields.io/badge/Node.js-%3E=18.0-green?style=for-the-badge&logo=nodedotjs" />
 <img src="https://img.shields.io/badge/MongoDB-Atlas-blue?style=for-the-badge&logo=mongodb" />
@@ -14,7 +14,7 @@
 
 **Hybrid vector search · Token-aware chunking · Self-healing retrieval · PII protection · Machine bytecode compilation**
 
-[Getting Started](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Benchmark](#-benchmark) · [CLI](#-cli-tool) · [License](#-license)
+[Getting Started](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Benchmark](#-benchmark) · [CLI](#-cli-tool) · [Discussions](https://github.com/manasdb/manasdb/discussions) · [License](#-license)
 
 </div>
 
@@ -157,7 +157,7 @@ manasdb/
 ### Installation
 
 ```bash
-npm install manasdb
+npm install @manasdb/core
 ```
 
 ### Environment Setup
