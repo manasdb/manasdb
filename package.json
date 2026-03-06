@@ -1,6 +1,6 @@
 {
   "name": "@manasdb/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Hybrid retrieval and semantic memory engine for MongoDB Atlas (RAG, embeddings, vector search)",
   "main": "dist/index.cjs",
   "exports": {
@@ -9,13 +9,13 @@
   "type": "module",
   "author": "ManasDB Contributors",
   "license": "SEE LICENSE IN LICENSE",
-  "homepage": "https://github.com/manasdb/manasdb-core#readme",
+  "homepage": "https://github.com/manasdb/manasdb#readme",
   "bugs": {
-    "url": "https://github.com/manasdb/manasdb-core/issues"
+    "url": "https://github.com/manasdb/manasdb/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/manasdb/manasdb-core.git"
+    "url": "https://github.com/manasdb/manasdb.git"
   },
   "engines": {
     "node": ">=18"
