@@ -71,7 +71,7 @@ ManasDB explicitly completely blanks identifying content! The telemetry schemas 
 If requested, execution engines can explicitly completely disable all native hooks directly against logic loops initialization:
 
 ```js
-import ManasDB from "manasdb";
+import { ManasDB } from "@manasdb/core";
 const memory = new ManasDB({
   uri: "mongodb+srv://...",
   telemetry: false, // Disables all financial and latency metrics globally

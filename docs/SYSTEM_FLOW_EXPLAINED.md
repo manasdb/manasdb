@@ -9,7 +9,7 @@ This document describes the high-level operational execution flow of ManasDB int
 When a developer sets up ManasDB in their application:
 
 ```javascript
-import ManasDB from "manasdb";
+import { ManasDB } from "@manasdb/core";
 const memory = new ManasDB({
   uri: process.env.MONGODB_URI,
   dbName: "my_project",

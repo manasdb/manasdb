@@ -171,7 +171,7 @@ MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/
 ### Basic Usage
 
 ```javascript
-import ManasDB from "manasdb";
+import { ManasDB } from "@manasdb/core";
 
 const memory = new ManasDB({
   uri: process.env.MONGODB_URI,
