@@ -1,29 +1,46 @@
 # ManasDB System Flow Explained
 
-This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through Plan 7.
+This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through Plan 9.
 
 ---
 
-## 1. SDK Initialization & Cluster Connection (Plan 1 & Plan 4)
+## 1. SDK Initialization & Cluster Connection (Plan 1, 4, & 9)
 
-When a developer sets up ManasDB in their application:
+When a developer sets up ManasDB in their application, three initialization modes are supported:
+
+**Polyglot Mode (both databases):**
 
 ```javascript
 import { ManasDB } from "@manasdb/core";
 const memory = new ManasDB({
-  uri: process.env.MONGODB_URI,
-  dbName: "my_project",
+  databases: [
+    { type: "mongodb", uri: process.env.MONGODB_URI },
+    { type: "postgres", uri: process.env.POSTGRES_URI },
+  ],
   projectName: "prod_env",
   modelConfig: { source: "openai", model: "text-embedding-3-small" },
   telemetry: true,
   piiShield: true,
 });
-await memory.init();
 ```
 
+**Single-DB Auto-Discovery (just one database):**
+
+```javascript
+const memory = new ManasDB({
+  uri: process.env.POSTGRES_URI, // Auto-detected as PostgreSQL from prefix
+  projectName: "prod_env",
+  modelConfig: { source: "transformers" },
+});
+```
+
+The SDK inspects the URI prefix at startup (`mongodb://` / `postgres://`) to automatically mount the correct storage provider. Specifying `dbType` is optional as an override.
+
+await memory.init();
+
 1. **Instantiation**: The SDK stores properties internally, preparing the environment.
-2. **Database Context**: `MongoConnection.connect()` safely pulls down the `MongoClient` as a Singleton. It also constructs necessary generic Vector indexes dynamically based on the requested model resolution dimensions if they don't exist yet (e.g., `vector_index_512`).
-3. **Model Binding**: The SDK invokes the `ModelFactory` to map the requested provider (OpenAI, Gemini, Ollama, Transformers).
+2. **Database Context via Providers**: Standard connections are initialized under `src/providers`. Both `MongoProvider` and `PostgresProvider` execute their respective `init()` schemas (e.g., verifying `pgvector` or generating MongoDB Indexes dynamically).
+3. **Model Binding**: The SDK invokes the `ModelFactory` under `src/core/providers` to map the requested embedding provider (OpenAI, Gemini, Ollama, Transformers).
 
 ---
 
@@ -57,22 +74,23 @@ When a developer stores a sequence natively using `.absorb(text)`:
    - **If Found**: It intercepts execution. It avoids the Model provider entirely. Cost naturally triggers `$0.00`. It registers `isDeduplicated = true` to accurately calculate savings structurally.
    - **If NOT Found**: It instructs the `ModelFactory` to request a dense Float32 array from OpenAI, Gemini, Ollama, or Transformers natively blocking pipeline till execution completes!
 
-### D. Relational Vector Insert
+### D. Relational Vector Insert (Broadcast)
 
-If vectors were mapped via LLMs natively, the exact array inserts structurally inside `_manas_vectors` inherently carrying the `content_id` parameter reference mapping explicitly safely mapped.
+If vectors were mapped via LLMs natively, the orchestrator invokes a generic `Promise.all()` over all configured Database Providers. The exact array inserts structurally inside `_manas_vectors` concurrently across both MongoDB and PostgreSQL, carrying their respective project mapping reference boundaries explicitly.
 
 ---
 
-## 3. The Retrieval Pipeline (Recall) (Plan 3)
+## 3. The Retrieval Pipeline (Recall) (Plan 3 & 9)
 
 When requesting a semantic search using `.recall(query)`:
 
 1. **Security & Hashing**: The search term is optionally redacted. A fresh timer initializes.
 2. **Cloud Transformation**: The query string is passed identically back through the `ModelFactory` to transform the phrase into an identically scaled Float32 vector array explicitly structurally mapping the dimension sizes inherently (handling dynamic Matryoshka dimensionality seamlessly if required).
-3. **Atlas `$vectorSearch`**: The raw array payload is piped into MongoDB Atlas leveraging its physical vector indexing structure natively sorting by `cosine` proximity targeting child sentence vectors specifically!
-   - **Self-Healing Fallback (Plan 8)**: If the `$vectorSearch` triggers a dimensional crash (e.g., trying to evaluate a 768-D query against a 384-D vector database collection) or encounters an initializing index, ManasDB silently traps the exception natively! It aborts the mathematics and triggers `_canonicalRecall()`. This routes the query terms directly against traditional `tags.keywords` structures populated previously!
-4. **Relational Joining**: Leveraging native `$lookup` stages internally, the fast vector references map natively instantly joining against their source bodies housed inside `_manas_content`.
-5. **Context Healing (Plan 2 Revised)**: The system extracts the unique `parentId` keys from all matched standalone sentences. It performs a secondary native query extracting the complete semantic Parent Document payloads natively, returning the entire paragraph block instead of simply an isolated sentence!
+3. **Polyglot Provider Sweep**: The raw array payload is piped concurrently into all registered Database Providers.
+   - **MongoDB Atlas (`$vectorSearch`)**: Indexes vectors mapping via `cosine` proximity.
+   - **PostgreSQL (`pgvector`)**: Evaluates similarities natively utilizing the distance (`<=>`) operator in a `JOIN`.
+4. **Relational Context Healing**: Depending on the connected DB, the backend Provider engine executes a relational reverse-linking stage (`$lookup` arrays in Mongo, and standard `JOIN`s mapped efficiently natively via `id` parameters in Postgres), grabbing the full Paragraph context text cleanly!
+5. **Score Serialization**: The system extracts the top vectors, merges them inside the SDK engine, strips away custom DB attributes, formats to normalized JSON, and executes Reciprocal Rank Fusion on standard `< 1.0` scores globally.
 6. **Formatted Output**: The system organically unwinds the lookup properties yielding beautifully clean object responses representing actual text properties, exact search proximity scores, and metadata dynamically safely (including `healedContext: true` tracking indicators actively).
 
 ---
@@ -83,7 +101,7 @@ When requesting a semantic search using `.recall(query)`:
 
 At the climax of `.absorb()` or `.recall()`, the underlying high-resolution timer organically finalizes.
 
-- A **"Fire and Forget"** MongoDB array write attempts pushing payloads into `_manas_telemetry` dynamically without ever running `await` natively.
+- A **"Fire and Forget"** Polyglot broadcast attempts pushing payloads into `_manas_telemetry` concurrently across all active database connections without ever running `await` natively.
 - This ensures 0 milliseconds of execution time is added to the user request.
 - It calculates `actual_cost` mapping structural pricing arrays (e.g., $0.02 / 1M tokens) globally correctly quantifying financial metrics structurally inherently isolated mathematically safely!
 

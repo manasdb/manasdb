@@ -4,7 +4,8 @@
   "description": "Hybrid retrieval and semantic memory engine for MongoDB Atlas (RAG, embeddings, vector search)",
   "main": "dist/index.cjs",
   "exports": {
-    ".": "./dist/index.cjs"
+    ".": "./dist/index.cjs",
+    "./src": "./src/index.js"
   },
   "type": "module",
   "author": "ManasDB Contributors",
@@ -61,7 +62,8 @@
     "dotenv": "^16.0.0",
     "mongodb": "^6.0.0",
     "ollama": "^0.5.0",
-    "openai": "^6.25.0"
+    "openai": "^6.25.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "bytenode": "^1.5.7",
