@@ -32,16 +32,22 @@
     "README.md"
   ],
   "keywords": [
-    "ai",
-    "mongodb",
-    "vector-database",
+    "vector-search",
     "semantic-search",
     "rag",
-    "embeddings",
+    "mongodb",
+    "pgvector",
+    "nodejs",
     "llm",
     "retrieval",
+    "ai",
+    "embeddings",
+    "postgresql",
+    "hybrid-search",
     "ai-memory",
-    "nodejs"
+    "langchain-alternative",
+    "vector-database",
+    "retrieval-augmented-generation"
   ],
   "bin": {
     "manas": "./bin/manas.js"
