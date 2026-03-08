@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*" # Triggers on any version tag: v0.3.0, v1.0.0, etc.
+
+permissions:
+  contents: write # Required to create GitHub Releases
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout full history so we can diff tags for changelog ──────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Read version from package.json ───────────────────────────────────
+      - name: Read version
+        id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      # ── 3. Build changelog from commits since last tag ──────────────────────
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+          CURR_TAG=${GITHUB_REF_NAME}
+
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "🎉 Initial release" >> changelog.md
+          else
+            echo "**Full diff:** [\`$PREV_TAG → $CURR_TAG\`](https://github.com/${{ github.repository }}/compare/$PREV_TAG...$CURR_TAG)" >> changelog.md
+            echo "" >> changelog.md
+
+            # Group commits by conventional-commit prefix
+            FEAT=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- feat" || true)
+            FIX=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- fix" || true)
+            DOCS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- docs" || true)
+            CHORE=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -iE "^- (chore|refactor|perf|test|build|ci)" || true)
+            OTHER=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -ivE "^- (feat|fix|docs|chore|refactor|perf|test|build|ci)" || true)
+
+            if [ -n "$FEAT" ]; then
+              echo "### ✨ Features" >> changelog.md
+              echo "$FEAT" >> changelog.md
+              echo "" >> changelog.md
+            fi
+
+            if [ -n "$FIX" ]; then
+              echo "### 🐛 Bug Fixes" >> changelog.md
+              echo "$FIX" >> changelog.md
+              echo "" >> changelog.md
+            fi
+
+            if [ -n "$DOCS" ]; then
+              echo "### 📝 Documentation" >> changelog.md
+              echo "$DOCS" >> changelog.md
+              echo "" >> changelog.md
+            fi
+
+            if [ -n "$CHORE" ]; then
+              echo "### 🔧 Maintenance" >> changelog.md
+              echo "$CHORE" >> changelog.md
+              echo "" >> changelog.md
+            fi
+
+            if [ -n "$OTHER" ]; then
+              echo "### 🔀 Other Changes" >> changelog.md
+              echo "$OTHER" >> changelog.md
+              echo "" >> changelog.md
+            fi
+          fi
+
+          # Append static footer
+          cat >> changelog.md << 'EOF'
+          ---
+          ### 📦 Install
+
+          ```bash
+          npm install @manasdb/core
+          ```
+
+          ### 📖 Resources
+          - [README](https://github.com/${{ github.repository }}#readme)
+          - [GitHub Discussions](https://github.com/${{ github.repository }}/discussions)
+          - [NPM Package](https://www.npmjs.com/package/@manasdb/core)
+          EOF
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat changelog.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # ── 4. Detect if this is a pre-release (e.g. v0.x.x or tag has -alpha/-beta) ──
+      - name: Detect pre-release
+        id: prerelease
+        run: |
+          TAG=${GITHUB_REF_NAME}
+          if echo "$TAG" | grep -qE '(-alpha|-beta|-rc|^v0\.)'; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 5. Create the GitHub Release ────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "@manasdb/core v${{ steps.pkg.outputs.version }}"
+          body: ${{ steps.changelog.outputs.body }}
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          draft: false
+          generate_release_notes: false # We supply our own above
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -31,23 +31,17 @@ class TelemetryManager {
     }
 
     /**
-     * Asynchronously logs a telemetry event to the database without waiting for the result.
+     * Asynchronously logs a telemetry event safely to all database providers correctly concurrently.
      * Never throws exceptions back to the main thread.
      * 
-     * @param {string} eventName - Standardized name of event (e.g. 'ABSORB_COMPLETED')
+     * @param {string} eventName - Standardized name of event
      * @param {Object} payload - Non-PII metadata including project context and duration.
-     * @param {string} payload.projectName - The ManasDB project namespace
-     * @param {number} [payload.durationMs] - The time the operation took
+     * @param {Array} providers - Array of BaseProvider extensions like MongoProvider / PostgresProvider.
      */
-    async logEvent(eventName, payload) {
+    async logEvent(eventName, payload, providers = []) {
         if (!this.enabled) return;
 
         try {
-            const db = MongoConnection.getDb();
-            if (!db) return; // Prevent crash if connection dropped
-
-            const telemetryCollection = db.collection('_manas_telemetry');
-
             const telemetryDoc = {
                 eventName,
                 projectName: payload.projectName || 'unknown',
@@ -64,11 +58,21 @@ class TelemetryManager {
                 timestamp: new Date()
             };
 
-            // Fire and Forget insertion
-            telemetryCollection.insertOne(telemetryDoc).catch(() => {});
-        } catch (error) {
-            // Absolutely silent catch. Telemetry MUST NEVER break the application.
-        }
+            // Polyglot Provider dispatch
+            if (providers && providers.length > 0) {
+                providers.forEach(p => {
+                    if (typeof p.logTelemetry === 'function') {
+                        p.logTelemetry(telemetryDoc).catch(() => {});
+                    }
+                });
+            } else {
+                // Fallback traditional singleton Mongo route
+                const db = MongoConnection.getDb();
+                if (db) {
+                    db.collection('_manas_telemetry').insertOne(telemetryDoc).catch(() => {});
+                }
+            }
+        } catch (error) {}
     }
 }
 

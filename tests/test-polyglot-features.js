@@ -16,19 +16,21 @@ This exact text will be inserted twice to test the deduplication engine.
 
 async function runFeaturesTest() {
     console.log(chalk.cyan("\n====================================================="));
-    console.log(chalk.bold("[INFO] MANASDB ENTERPRISE FEATURES TEST SUITE"));
+    console.log(chalk.bold("[INFO] MANASDB POLYGLOT FEATURES TEST SUITE"));
     console.log(chalk.cyan("=====================================================\n"));
 
     let db;
     try {
-        const projectName = 'feature_test_' + Date.now();
+        const projectName = 'poly_feature_' + Date.now();
         db = new ManasDB({
-            uri: process.env.MONGODB_URI,
-            dbName: 'manasdb_test',
+            databases: [
+                { type: 'mongodb', uri: process.env.MONGODB_URI, dbName: 'manasdb_test' },
+                { type: 'postgres', uri: process.env.POSTGRES_URI }
+            ],
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
-            piiShield: true // Enable PII Redaction
+            piiShield: { enabled: true },
+            telemetry: true
         });
 
         await db.init();
@@ -51,9 +53,11 @@ async function runFeaturesTest() {
         console.log(chalk.yellow("Test 1: PII Shielding (Emails, Phones, Secrets)"));
         const absorb1 = await db.absorb(TEST_TEXT_1, { profile: 'speed' });
         
-        // Let's directly query the chunk to verify it was redacted before storage
+        // Verifying PII through MongoDB
         const chunkCol = MongoConnection.getDb().collection('_manas_chunks');
-        const chunkDoc = await chunkCol.findOne({ document_id: absorb1.contentId });
+        // We know it returns multiple contentIds from polyglot.
+        const parentMongoId = absorb1.inserted.find(i => i.database === 'mongodb').contentId;
+        const chunkDoc = await chunkCol.findOne({ document_id: parentMongoId });
         
         assert(
             chunkDoc.text.includes('[EMAIL]'), 
@@ -78,10 +82,13 @@ async function runFeaturesTest() {
         const dedup1 = await db.absorb(TEST_TEXT_2, { profile: 'speed' });
         const dedup2 = await db.absorb(TEST_TEXT_2, { profile: 'speed' });
 
+        const d1_pg = dedup1.inserted.find(i => i.database === 'postgres').contentId;
+        const d2_pg = dedup2.inserted.find(i => i.database === 'postgres').contentId;
+
         assert(
-            dedup1.contentId.toString() === dedup2.contentId.toString(),
-            "Sequential deduplication successful: same content_id returned",
-            "Sequential deduplication failed: " + dedup1.contentId + " !== " + dedup2.contentId
+            d1_pg === d2_pg,
+            "Sequential deduplication successful across PostgreSQL",
+            "Sequential deduplication failed: " + d1_pg + " !== " + d2_pg
         );
 
         // ------------------------------------------------------------------
@@ -92,17 +99,16 @@ async function runFeaturesTest() {
         await new Promise(r => setTimeout(r, 5000));
 
         const queryText = "What is the contact information for John Doe?";
-        // First recall should hit the database
+        // First recall should hit the databases
         const recall1 = await db.recall(queryText, { mode: 'qa', limit: 3 });
         console.log("RECALL 1 LENGTH:", recall1.length);
-        if(recall1.length) console.log("RECALL 1 [0]:", recall1[0].text);
         assert(
             recall1._trace.cacheHit === false,
             "Initial recall correctly bypassed cache",
-            "Initial recall incorrectly registered a cache hit"
+            "Initial recall falsely hit cache"
         );
 
-        // Second recall should hit the exact cache
+        // Second duplicate EXACT recall should instantly hit the Semantic LRU Cache
         const recall2 = await db.recall(queryText, { mode: 'qa', limit: 3 });
         assert(
             recall2._trace.cacheHit === true,
@@ -110,16 +116,15 @@ async function runFeaturesTest() {
             "Subsequent recall missed cache"
         );
 
-        // ------------------------------------------------------------------
         console.log(chalk.cyan("\n====================================================="));
         console.log(chalk.bold(`[INFO] Feature Test Score: ${passed}/${total} (${Math.round((passed / total) * 100)}%)`));
         console.log(chalk.cyan("=====================================================\n"));
         
         if (passed === total) {
-            console.log(chalk.green("🎉 ALL FEATURE TESTS PASSED!"));
-            process.exit(0);
+            console.log('🎉 ALL POLYGLOT FEATURE TESTS PASSED!');
+            setTimeout(() => process.exit(0), 500);
         } else {
-            console.log(chalk.red("❌ SOME FEATURE TESTS FAILED."));
+            console.log(chalk.red("❌ SOME POLYGLOT FEATURE TESTS FAILED."));
             process.exit(1);
         }
 
@@ -127,7 +132,7 @@ async function runFeaturesTest() {
         console.error(chalk.red("[ERROR]"), err);
         process.exit(1);
     } finally {
-        await MongoConnection.disconnect();
+        if (db) await db.close();
     }
 }
 
