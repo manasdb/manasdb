@@ -1,6 +1,6 @@
 {
   "name": "@manasdb/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Hybrid retrieval and semantic memory engine for MongoDB Atlas (RAG, embeddings, vector search)",
   "main": "dist/index.cjs",
   "exports": {
