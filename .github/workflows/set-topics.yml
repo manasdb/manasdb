@@ -1,0 +1,47 @@
+name: Set Repository Topics
+
+# Runs once on push to main/master, or can be triggered manually.
+# Uses the GitHub API to stamp the repo with discovery topics.
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Allow manual trigger from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  set-topics:
+    name: Stamp GitHub repo topics
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set topics via GitHub API
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.replaceAllTopics({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              names: [
+                "vector-search",
+                "semantic-search",
+                "rag",
+                "mongodb",
+                "pgvector",
+                "nodejs",
+                "llm",
+                "retrieval",
+                "ai",
+                "embeddings",
+                "postgresql",
+                "hybrid-search",
+                "ai-memory",
+                "vector-database",
+                "retrieval-augmented-generation"
+              ]
+            });
+            console.log("✅ Repository topics updated successfully.");
