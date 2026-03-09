@@ -386,6 +386,11 @@ manasdb/
 │   │       ├── cloud.provider.js    # OpenAI + Gemini
 │   │       ├── ollama.provider.js
 │   │       └── transformers.provider.js  # Local @xenova/transformers
+│   └── providers/             # Storage drivers (DB-agnostic)
+│       ├── base.js            #   BaseProvider interface all drivers extend
+│       ├── factory.js         #   ProviderFactory — lazy dynamic import registry (Plan 10)
+│       ├── mongodb.js         #   MongoDB Atlas vector search driver
+│       └── postgres.js        #   PostgreSQL + pgvector driver
 │   └── utils/
 │       ├── CostCalculator.js   # Token estimation & financial cost calc
 │       ├── ModelRegistry.js    # Dimension lookup per model
@@ -404,11 +409,21 @@ manasdb/
 │   └── test-polyglot-features.js # Polyglot feature tests
 ├── examples/                  # Runnable copy-paste examples
 │   ├── mongodb-basic/         # MongoDB-only starter project
+│   │   ├── index.js           #   Working example code
+│   │   ├── test.js            #   Self-contained test suite (16 assertions)
+│   │   └── README.md
 │   ├── postgres-basic/        # PostgreSQL-only starter project
+│   │   ├── index.js
+│   │   ├── test.js
+│   │   └── README.md
 │   └── polyglot-mode/         # Both providers simultaneously
-├── docs/                      # Architecture decision documents (PLAN_01 through PLAN_09)
+│       ├── index.js
+│       ├── test.js            #   Polyglot-specific assertions (health, merge, dedup)
+│       └── README.md
+├── docs/                      # Architecture decision documents (PLAN_01 through PLAN_10)
 ├── dist/                      # Compiled bytecode output (npm run build)
 ├── build.js                   # Security compiler (esbuild + bytenode)
+├── verify-lazy-loading.js     # Proves lazy-loading works (11 assertions)
 └── package.json
 ```
 
@@ -450,6 +465,13 @@ new ManasDB({
   debug: false, // Prints model/profile keys on each operation
 });
 ```
+
+### 🚨 Strict Mode (Zero-Config Protection)
+
+To prevent silent failures if you accidentally omit a database URI (or forget to load a `.env` file), ManasDB implements a **Strict Mode**.
+
+- Initializing `new ManasDB({})` and calling `await memory.init()` without databases will **succeed and issue a warning** (so it never crashes your server on boot).
+- However, if your application tries to execute `await memory.absorb()` or `await memory.recall()` when zero databases are loaded, ManasDB will **Fail Fast** and throw a descriptive error: `MANASDB_ERROR: Cannot absorb(). No valid database providers were configured`.
 
 ---
 

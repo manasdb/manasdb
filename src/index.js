@@ -1,5 +1,4 @@
-import PostgresProvider from './providers/postgres.js';
-import MongoProvider from './providers/mongodb.js';
+// ── Core utilities (always needed, no optional deps) ──────────────────────────
 import MemoryEngine from './core/memory-engine.js';
 import ModelFactory from './core/model-factory.js';
 import SearchFormatter from './utils/SearchFormatter.js';
@@ -8,6 +7,9 @@ import Telemetry from './utils/Telemetry.js';
 import CostCalculator from './utils/CostCalculator.js';
 import ModelRegistry from './utils/ModelRegistry.js';
 import crypto from 'crypto';
+
+// ── Provider factory (lazy-loads actual DB drivers on demand) ─────────────────
+import { createProviders, inferTypeFromUri } from './providers/factory.js';
 
 class ManasDB {
   /**
@@ -53,22 +55,22 @@ class ManasDB {
       this.piiShield.customRules = Array.isArray(piiShield.customRules) ? piiShield.customRules : [];
     }
 
-    // ── Semantic cache: two structures for O(1) exact hit + bounded fuzzy scan ──
-    this.semanticCache      = [];          // ordered array for fuzzy cosine scan (capped at 200)
-    this.semanticCacheIndex = new Map();   // hash → results for O(1) exact lookup
+    // ── Semantic cache ──
+    this.semanticCache      = [];
+    this.semanticCacheIndex = new Map();
 
-    // ── Multi-Provider Storage Registry Orchestration ──
-    this.databaseDrivers = [];
-    
-    // Backwards compatible quickstart initialization
+    // ── Store raw DB config — providers are resolved lazily inside init() ──
+    // This avoids loading the 'pg' or 'mongodb' package until actually needed.
+    this.databaseDrivers = [];   // populated by init()
+    this._initCalled     = false;
+
+    // Backwards-compatible quickstart normalization (single uri → databases[])
     let dbConfigs = databases;
     if (!databases || !Array.isArray(databases)) {
       if (uri) {
         let inferType = dbType;
         if (!inferType) {
-          const lowerUri = uri.toLowerCase();
-          if (lowerUri.startsWith('postgres') || lowerUri.startsWith('postgresql')) inferType = 'postgres';
-          else inferType = 'mongodb'; // Standard generic fallback
+          inferType = inferTypeFromUri(uri);
         }
         dbConfigs = [{ type: inferType, uri, dbName }];
       } else {
@@ -76,16 +78,10 @@ class ManasDB {
       }
     }
 
-    for (const dbConfig of dbConfigs) {
-      if (dbConfig.type === 'postgres') {
-        this.databaseDrivers.push(new PostgresProvider(dbConfig.uri, dbConfig.dbName, projectName, debug));
-      } else {
-        // Default assuming MongoDB if unspecified
-        this.databaseDrivers.push(new MongoProvider(dbConfig.uri, dbConfig.dbName, projectName, debug));
-      }
-    }
-    
-    if (this.databaseDrivers.length === 0) {
+    // Persist raw configs; do NOT instantiate providers here
+    this._dbConfigs = dbConfigs;
+
+    if (dbConfigs.length === 0) {
       console.warn('MANASDB_WARNING: Initialized with no database providers configured.');
     }
   }
@@ -95,11 +91,19 @@ class ManasDB {
   // ══════════════════════════════════════════════════════════════════════════
 
   async init() {
-    let targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
-    
-    // Triggers the specific provider table/collection creation logic across all registered databases concurrently
+    // ── Lazy-load providers via the factory ──────────────────────────────────
+    // This is the ONLY place where 'mongodb' or 'pg' packages are imported.
+    // If a package is missing, createProviders() throws a helpful install message.
+    if (!this._initCalled) {
+      this.databaseDrivers = await createProviders(this._dbConfigs, this.projectName, this.debug);
+      this._initCalled = true;
+    }
+
+    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+
+    // Init all providers concurrently (schema creation, index checks, etc.)
     await Promise.all(this.databaseDrivers.map(driver => driver.init(targetDims)));
-    if (this.debug) console.log(`ManasDB Polyglot Architecture initialized: ${this.databaseDrivers.length} providers mounted.`);
+    if (this.debug) console.log(`ManasDB Polyglot initialized: ${this.databaseDrivers.length} provider(s) ready.`);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -107,6 +111,10 @@ class ManasDB {
   // ══════════════════════════════════════════════════════════════════════════
 
   async absorb(rawText, options = {}) {
+    if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before absorb().');
+    if (this.databaseDrivers.length === 0) {
+      throw new Error("MANASDB_ERROR: Cannot absorb(). No valid database providers were configured (e.g., missing MongoDB/Postgres URI).");
+    }
     const timer = Telemetry.startTimer();
     if (typeof rawText !== 'string' || !rawText.trim()) {
       throw new Error('MANASDB_ABSORB_ERROR: Text must be a non-empty string.');
@@ -164,6 +172,10 @@ class ManasDB {
   // ══════════════════════════════════════════════════════════════════════════
 
   async recall(query, options = {}) {
+    if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before recall().');
+    if (this.databaseDrivers.length === 0) {
+      throw new Error("MANASDB_ERROR: Cannot recall(). No valid database providers were configured (e.g., missing MongoDB/Postgres URI).");
+    }
     if (typeof query !== 'string' || !query.trim()) {
       throw new Error('MANASDB_RECALL_ERROR: Query must be a non-empty string.');
     }
