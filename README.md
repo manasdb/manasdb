@@ -86,6 +86,10 @@ console.log(result[0].metadata.matchedChunk);
 
 ```bash
 npm install @manasdb/core
+
+# Then, install ONLY the driver(s) for the database you plan to use:
+npm install mongodb     # If using MongoDB Atlas
+npm install pg          # If using PostgreSQL
 ```
 
 ### Environment Setup
