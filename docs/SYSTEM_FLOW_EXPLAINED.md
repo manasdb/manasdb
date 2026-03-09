@@ -1,10 +1,10 @@
 # ManasDB System Flow Explained
 
-This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through Plan 9.
+This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through **Plan 10**.
 
 ---
 
-## 1. SDK Initialization & Cluster Connection (Plan 1, 4, & 9)
+## 1. SDK Initialization & Cluster Connection (Plan 1, 4, 9, & 10)
 
 When a developer sets up ManasDB in their application, three initialization modes are supported:
 
@@ -34,13 +34,18 @@ const memory = new ManasDB({
 });
 ```
 
-The SDK inspects the URI prefix at startup (`mongodb://` / `postgres://`) to automatically mount the correct storage provider. Specifying `dbType` is optional as an override.
+The SDK inspects the URI prefix (`mongodb://` / `postgres://`) to automatically detect the correct provider type via `inferTypeFromUri()` in `src/providers/factory.js`. Specifying `dbType` is optional as an override.
 
-await memory.init();
+> **Plan 10 — Lazy Loading**: `new ManasDB({...})` stores only raw configuration (`_dbConfigs`). **No database driver is loaded until `await memory.init()` is called.** This means users without `pg` installed never see a crash when using MongoDB-only mode, and vice-versa.
 
-1. **Instantiation**: The SDK stores properties internally, preparing the environment.
-2. **Database Context via Providers**: Standard connections are initialized under `src/providers`. Both `MongoProvider` and `PostgresProvider` execute their respective `init()` schemas (e.g., verifying `pgvector` or generating MongoDB Indexes dynamically).
-3. **Model Binding**: The SDK invokes the `ModelFactory` under `src/core/providers` to map the requested embedding provider (OpenAI, Gemini, Ollama, Transformers).
+`await memory.init()`:
+
+1. **Lazy Provider Resolution**: `ProviderFactory.createProviders()` is called. For each entry in `_dbConfigs`, the factory dynamically `import()`s only the required driver module (`./mongodb.js` or `./postgres.js`).
+   - If a required npm package is missing (e.g. `pg` not installed), a clear human-readable error is thrown: _"The 'pg' package is required for PostgreSQL. Run: `npm install pg`"_
+2. **Schema Bootstrap**: Each loaded provider runs its `init()` method — verifying `pgvector`, generating MongoDB vector indexes, etc.
+3. **Model Binding**: The SDK invokes `ModelFactory` under `src/core/providers` to map the embedding provider (OpenAI, Gemini, Ollama, Transformers).
+
+> **Strict Mode**: If `new ManasDB({})` was initialized without any URIs, `init()` successfully resolves with 0 databases to prevent a server crash. However, the exact moment the developer calls `absorb()` or `recall()`, the pipeline immediately halts and throws an explicit `MANASDB_ERROR` instead of failing silently.
 
 ---
 
@@ -112,3 +117,21 @@ Because standard logging mechanisms organically exist securely, we map the exter
 - Developers execute `npx manas stats` exactly cleanly generating dynamic pipeline outputs.
 - The Engine aggregates the internal `_manas_telemetry` calculations projecting literal Token usage metrics, Total Dollar values dynamically intercepted / saved, and precise execution bypass milliseconds!
 - `npx manas health` executes basic logical API connectivity loops validating DB infrastructure directly automatically explicitly!
+
+---
+
+## 5. ProviderFactory & Lazy Loading (Plan 10)
+
+`src/providers/factory.js` is the single entry point for all database driver resolution:
+
+| Concept                | Detail                                                                                                                            |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Registry**           | `PROVIDER_REGISTRY` maps type strings (`'mongodb'`, `'postgres'`, `'pg'`, `'postgresql'`) to file paths and required npm packages |
+| **Dynamic Import**     | `loadProviderClass(type)` uses `import(entry.path)` — never a static top-level import                                             |
+| **Module Cache**       | A module-level `Map` caches each loaded class to avoid re-importing across multiple instances                                     |
+| **Graceful Failure**   | If the required package is missing, throws `"[ManasDB] The 'pg' package is required. Run: npm install pg"`                        |
+| **No Silent Fallback** | Explicit unrecognized types (e.g. `'redis'`) throw `"Unknown provider type"` immediately                                          |
+
+To add a new database type in the future, only two files need to change: `factory.js` (add registry entry) and `build.js` (add npm package to esbuild externals).
+
+See [PLAN_10_LAZY_PROVIDER_FACTORY.md](./PLAN_10_LAZY_PROVIDER_FACTORY.md) for full details.

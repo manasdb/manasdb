@@ -1,4 +1,3 @@
-import { MongoClient } from "mongodb";
 
 /**
  * MongoDB Connection Manager.
@@ -34,6 +33,7 @@ class MongoConnection {
 
     // 3. Establish a new database connection
     try {
+      const { MongoClient } = await import("mongodb");
       this.#client = new MongoClient(uri);
       await this.#client.connect();
       this.#db = this.#client.db(dbName);

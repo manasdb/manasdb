@@ -5,30 +5,25 @@ import path from 'path';
 
 console.log('Starting ManasDB Security Compiler...');
 
-// 1. Ensure dist directory exists
+// 1a. Ensure dist directory exists
 if (!fs.existsSync('dist')) {
-  fs.mkdirSync('dist');
+  fs.mkdirSync('dist', { recursive: true });
 }
 
-// 2. Bundle all internal code into a single CJS file
+const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ollama', 'openai', '@google/generative-ai', '@xenova/transformers', 'dotenv', 'chalk'];
+
+// 2. Bundle all internal code into a single CJS file.
 // This hides internal folder structures and files from the compiled output
+// Because providers no longer have top-level require()s of pg/mongodb,
+// we can safely bundle them without breaking the lazy-loading crash-guards.
 await esbuild.build({
   entryPoints: ['src/index.js'],
   bundle: true,
   outfile: 'dist/manasdb.bundle.cjs',
-  format: 'cjs', // Bytenode works best with CommonJS
+  format: 'cjs',
   platform: 'node',
-  // Exclude node_modules from being compiled into the binary
-  external: [
-    'mongodb', 
-    'ollama', 
-    'openai', 
-    '@google/generative-ai', 
-    '@xenova/transformers',
-    'dotenv',
-    'chalk'
-  ],
-  minify: true // 3. Minify variable names and remove whitespace Before Bytecode Compilation
+  external: PROVIDER_EXTERNALS,
+  minify: true,
 });
 
 console.log('✔️  JavaScript bundled and minified.');
