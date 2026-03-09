@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import crypto from 'crypto';
 import BaseProvider from './base.js';
 
@@ -19,11 +18,14 @@ class PostgresProvider extends BaseProvider {
     super();
     this.projectName = projectName || 'default';
     this.debug = debug;
-    
-    this.pool = new Pool({ connectionString: uri });
+    this.uri = uri;
+    this.pool = null;
   }
 
   async init() {
+    const { Pool } = await import('pg');
+    this.pool = new Pool({ connectionString: this.uri });
+
     // 1. Ensure pgvector extension exists
     await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector;');
 
@@ -227,6 +229,10 @@ class PostgresProvider extends BaseProvider {
   }
 
   async delete(documentId) {
+    if (!/^\d+$/.test(String(documentId))) {
+      if (this.debug) console.log(`[PostgresProvider] Ignore delete for non-integer id: ${documentId}`);
+      return;
+    }
     await this.pool.query('DELETE FROM _manas_documents WHERE id = $1 AND project = $2', [documentId, this.projectName]);
   }
 
