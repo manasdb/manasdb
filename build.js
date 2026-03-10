@@ -5,12 +5,13 @@ import path from 'path';
 
 console.log('Starting ManasDB Security Compiler...');
 
-// 1a. Ensure dist directory exists
-if (!fs.existsSync('dist')) {
-  fs.mkdirSync('dist', { recursive: true });
+// 1a. Ensure dist directory is sparkling clean before building
+if (fs.existsSync('dist')) {
+  fs.rmSync('dist', { recursive: true, force: true });
 }
+fs.mkdirSync('dist', { recursive: true });
 
-const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ollama', 'openai', '@google/generative-ai', '@xenova/transformers', 'dotenv', 'chalk'];
+const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ioredis', 'ollama', 'openai', '@google/generative-ai', '@xenova/transformers', 'dotenv', 'chalk'];
 
 // 2. Bundle all internal code into a single CJS file.
 // This hides internal folder structures and files from the compiled output

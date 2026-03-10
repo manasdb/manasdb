@@ -2,41 +2,43 @@
  * ProviderFactory — Lazy-loading registry for ManasDB storage drivers.
  *
  * Design principles:
- *  • Zero top-level driver imports — packages (mongodb, pg) are only loaded 
- *    in their respective .init() methods.
- *  • This allows us to statically bundle them into the core without crashing 
- *    if the user doesn't have all DB libraries installed.
+ *  • Zero top-level driver imports — npm packages (mongodb, pg, ioredis) are only
+ *    loaded inside their respective .init() methods.
+ *  • Storage drivers (MongoDB, Postgres) extend BaseProvider.
+ *  • Cache providers (Redis) are separate — they use a distinct createCacheProvider().
  *
  * @module providers/factory
  */
 
-import MongoProvider from './mongodb.js';
+import MongoProvider    from './mongodb.js';
 import PostgresProvider from './postgres.js';
+import RedisProvider    from './redis.js';
 
 // ── URI auto-detection ────────────────────────────────────────────────────────
 /**
  * Infers the dbType from a connection URI string.
  * @param {string} uri
- * @returns {'postgres'|'mongodb'}
+ * @returns {'postgres'|'mongodb'|'redis'}
  */
 export function inferTypeFromUri(uri = '') {
     const l = uri.toLowerCase();
     if (l.startsWith('postgres') || l.startsWith('postgresql')) return 'postgres';
+    if (l.startsWith('redis'))                                    return 'redis';
     return 'mongodb';
 }
 
-// ── Registry ──────────────────────────────────────────────────────────────────
+// ── Storage Provider Registry (Durable DBs) ──────────────────────────────────
 const PROVIDER_REGISTRY = {
-    mongodb: MongoProvider,
-    postgres: PostgresProvider,
-    pg: PostgresProvider,
+    mongodb:    MongoProvider,
+    postgres:   PostgresProvider,
+    pg:         PostgresProvider,
     postgresql: PostgresProvider,
 };
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API — Storage Providers ───────────────────────────────────────────
 
 /**
- * Builds and returns an initialized provider instance for a single DB config.
+ * Builds a single durable storage provider instance.
  */
 export async function createProvider(dbConfig, projectName, debug = false) {
     let canonicalType;
@@ -50,9 +52,6 @@ export async function createProvider(dbConfig, projectName, debug = false) {
     }
 
     const ProviderClass = PROVIDER_REGISTRY[canonicalType];
-    
-    // The provider constructor is safe — it doesn't initialize the connection yet.
-    // The actual npm package (mongodb / pg) will be dynamically imported inside .init()
     return new ProviderClass(dbConfig.uri, dbConfig.dbName, projectName, debug);
 }
 
@@ -63,4 +62,32 @@ export async function createProviders(dbConfigs, projectName, debug = false) {
     return Promise.all(dbConfigs.map(cfg => createProvider(cfg, projectName, debug)));
 }
 
-export default { createProvider, createProviders, inferTypeFromUri };
+// ── Public API — Cache Provider ───────────────────────────────────────────────
+
+/**
+ * Builds the Tier 1 cache provider from a cache config block:
+ *   { provider: 'redis', uri: 'redis://...', semanticThreshold: 0.92, ttl: 3600 }
+ *
+ * @param {Object} cacheConfig
+ * @param {boolean} debug
+ * @returns {RedisProvider|null}
+ */
+export function createCacheProvider(cacheConfig, debug = false) {
+    if (!cacheConfig || !cacheConfig.provider) return null;
+
+    const type = cacheConfig.provider.toLowerCase();
+    if (type === 'redis') {
+        if (!cacheConfig.uri) throw new Error('[ManasDB] Redis cache requires a `uri` field.');
+        return new RedisProvider(
+            cacheConfig.uri,
+            cacheConfig.ttl ?? 3600,
+            cacheConfig.semanticThreshold ?? 0.92,
+            debug
+        );
+    }
+
+    throw new Error(`[ManasDB] Unknown cache provider "${type}". Supported: redis.`);
+}
+
+export default { createProvider, createProviders, createCacheProvider, inferTypeFromUri };
+

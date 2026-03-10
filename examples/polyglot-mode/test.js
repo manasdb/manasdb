@@ -114,7 +114,7 @@ console.log("\nTest 6: semantic cache");
 const q = "What is RAG?";
 await memory.recall(q, { limit: 3 });
 const cached = await memory.recall(q, { limit: 3 });
-assert(cached._trace?.cacheHit === true, "Second identical recall is a cache hit");
+assert(!!cached._trace?.cacheHit, "Second identical recall is a cache hit");
 
 // ── 7. health() reports both providers ───────────────────────────────────────
 console.log("\nTest 7: health()");

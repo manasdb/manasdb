@@ -84,7 +84,7 @@ assert(results[0].metadata?.matchedChunk?.length > 0, "result[0].metadata.matche
 // ── 4. Semantic cache — second identical query should be a cache hit ──────────
 console.log("\nTest 4: semantic cache");
 const r2 = await memory.recall("What is JWST's mirror made of?", { limit: 3, minScore: 0.05 });
-assert(r2._trace?.cacheHit === true, "Second identical recall hits the semantic cache");
+assert(!!r2._trace?.cacheHit, "Second identical recall hits the semantic cache");
 
 // ── 5. Score ordering — results must be sorted descending ────────────────────
 console.log("\nTest 5: score ordering");

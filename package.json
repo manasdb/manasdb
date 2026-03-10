@@ -1,7 +1,7 @@
 {
   "name": "@manasdb/core",
-  "version": "0.3.2",
-  "description": "Hybrid retrieval and semantic memory engine for MongoDB Atlas (RAG, embeddings, vector search)",
+  "version": "0.4.0",
+  "description": "The memory layer for AI applications — hybrid RAG retrieval, PII shield, polyglot storage",
   "main": "dist/index.cjs",
   "exports": {
     ".": "./dist/index.cjs",
@@ -9,7 +9,7 @@
   },
   "type": "module",
   "author": "ManasDB Contributors",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0 WITH Commons-Clause",
   "homepage": "https://github.com/manasdb/manasdb#readme",
   "bugs": {
     "url": "https://github.com/manasdb/manasdb/issues"
@@ -32,23 +32,39 @@
     "README.md"
   ],
   "keywords": [
-    "vector-search",
-    "semantic-search",
-    "rag",
-    "mongodb",
-    "pgvector",
-    "nodejs",
-    "llm",
-    "retrieval",
-    "ai",
-    "embeddings",
-    "postgresql",
-    "hybrid-search",
-    "ai-memory",
-    "langchain-alternative",
     "vector-database",
-    "retrieval-augmented-generation"
+    "rag",
+    "retrieval-augmented-generation", 
+    "memory",
+    "mcp",
+    "model-context-protocol",
+    "mongodb",
+    "postgresql",
+    "pgvector",
+    "embeddings",
+    "semantic-search",
+    "ai",
+    "llm",
+    "hybrid-search",
+    "langchain",
+    "claude",
+    "ollama",
+    "openai",
+    "gemini",
+    "pii",
+    "vector-search",
+    "nodejs",
+    "typescript",
+    "mem0",
+    "ai-memory",
+    "redis",
+    "semantic-cache",
+    "tree-reasoning"
   ],
+  "funding": {
+    "type": "individual",
+    "url": "https://razorpay.me/@manasdb"
+  },
   "bin": {
     "manas": "./bin/manas.js"
   },
@@ -56,7 +72,11 @@
     "test:random": "node tests/test-large-random.js",
     "test:features": "node tests/test-features.js",
     "test:e2e": "node tests/test-e2e.js",
-    "test:all": "node cleanup.js && npm run test:random && node cleanup.js && npm run test:features && node cleanup.js && npm run test:e2e",
+    "test:random-pg": "node tests/test-large-random-pg.js",
+    "test:features-pg": "node tests/test-features-pg.js",
+    "test:e2e-pg": "node tests/test-e2e-pg.js",
+    "test:redis-cache": "node tests/test-redis-cache.js",
+    "test:all": "npm run test:random && npm run test:random-pg && npm run test:features && npm run test:features-pg && npm run test:e2e && npm run test:e2e-pg && npm run test:redis-cache",
     "health": "node src/health.js",
     "build": "node build.js"
   },
@@ -70,6 +90,7 @@
     "openai": "^6.25.0"
   },
   "optionalDependencies": {
+    "ioredis": "^5.10.0",
     "mongodb": "^6.0.0",
     "pg": "^8.20.0"
   },
