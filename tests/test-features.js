@@ -105,7 +105,7 @@ async function runFeaturesTest() {
         // Second recall should hit the exact cache
         const recall2 = await db.recall(queryText, { mode: 'qa', limit: 3 });
         assert(
-            recall2._trace.cacheHit === true,
+            !!recall2._trace.cacheHit,
             "Subsequent exact recall successfully hit semantic cache",
             "Subsequent recall missed cache"
         );

@@ -6,10 +6,11 @@ import PIIFilter from './utils/PIIFilter.js';
 import Telemetry from './utils/Telemetry.js';
 import CostCalculator from './utils/CostCalculator.js';
 import ModelRegistry from './utils/ModelRegistry.js';
+import TreeIndex from './core/tree-index.js';
 import crypto from 'crypto';
 
 // ── Provider factory (lazy-loads actual DB drivers on demand) ─────────────────
-import { createProviders, inferTypeFromUri } from './providers/factory.js';
+import { createProviders, createCacheProvider, inferTypeFromUri } from './providers/factory.js';
 
 class ManasDB {
   /**
@@ -23,6 +24,10 @@ class ManasDB {
          await driver.pool.end();
        }
     }));
+    // Close Redis cache connection if it was initialized
+    if (this._cacheProvider && typeof this._cacheProvider.close === 'function') {
+      await this._cacheProvider.close();
+    }
   }
   /**
    * Creates a new ManasDB instance supporting Polyglot Persistence.
@@ -38,8 +43,10 @@ class ManasDB {
    * @param {boolean|Object}[config.piiShield]    - PII Shield config.
    * @param {boolean}       [config.telemetry]    - Telemetry toggle.
    * @param {boolean}       [config.debug]        - Debug logs toggle.
+   * @param {Object}        [config.cache]        - Tier 1 cache config: { provider: 'redis', uri: '...', semanticThreshold: 0.92, ttl: 3600 }
+   * @param {Object}        [config.reasoning]    - Hierarchical reasoning: { enabled: true }
    */
-  constructor({ uri, dbName, dbType, databases, projectName, modelConfig, piiShield, telemetry = true, debug = false }) {
+  constructor({ uri, dbName, dbType, databases, projectName, modelConfig, piiShield, telemetry = true, debug = false, cache, reasoning }) {
     this.projectName = projectName;
     this.modelConfig = modelConfig || { source: 'transformers' };
     this.debug       = debug === true;
@@ -84,6 +91,15 @@ class ManasDB {
     if (dbConfigs.length === 0) {
       console.warn('MANASDB_WARNING: Initialized with no database providers configured.');
     }
+
+    // ── Tier 1 Redis Cache (optional) ──
+    // Instantiated here but NOT connected until init()
+    this._cacheConfig   = cache || null;
+    this._cacheProvider = null;   // set in init()
+
+    // ── Hierarchical Reasoning (optional) ──
+    this._reasoningEnabled = reasoning?.enabled === true;
+    this._treeIndex        = new TreeIndex(); // lazy-built on first reasoningRecall()
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -91,7 +107,7 @@ class ManasDB {
   // ══════════════════════════════════════════════════════════════════════════
 
   async init() {
-    // ── Lazy-load providers via the factory ──────────────────────────────────
+    // ── Lazy-load DB providers via the factory ────────────────────────────────
     // This is the ONLY place where 'mongodb' or 'pg' packages are imported.
     // If a package is missing, createProviders() throws a helpful install message.
     if (!this._initCalled) {
@@ -101,8 +117,17 @@ class ManasDB {
 
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
 
-    // Init all providers concurrently (schema creation, index checks, etc.)
+    // Init all DB providers concurrently (schema creation, index checks, etc.)
     await Promise.all(this.databaseDrivers.map(driver => driver.init(targetDims)));
+
+    // ── Tier 1 Redis Cache init ───────────────────────────────────────────────
+    // createCacheProvider() is synchronous — ioredis is lazy-loaded inside RedisProvider.init()
+    if (this._cacheConfig && !this._cacheProvider) {
+      this._cacheProvider = createCacheProvider(this._cacheConfig, this.debug);
+      await this._cacheProvider.init();
+      if (this.debug) console.log('[ManasDB] Redis Tier 1 cache connected.');
+    }
+
     if (this.debug) console.log(`ManasDB Polyglot initialized: ${this.databaseDrivers.length} provider(s) ready.`);
   }
 
@@ -163,7 +188,8 @@ class ManasDB {
       contentId: primary.contentId,
       vectorIds: primary.vectorIds,
       isDeduplicated: primary.isDeduplicated,
-      inserted: insertionResults 
+      inserted: insertionResults,
+      rawChunks: chunks 
     };
   }
 
@@ -187,20 +213,36 @@ class ManasDB {
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
 
+    // Short Query Bypass: Ultra-short queries have high collision rates and low DB execution cost.
+    // Bypassing the cache avoids the 2-4ms TCP hop overhead to Redis.
+    const isShortQuery = query.split(/\s+/).length <= 2;
+
+    // ── 1.a Tier 1: Redis Semantic Cache ──────────────────────────────────────
+    // Check Redis BEFORE in-memory LRU — Redis is shared across server instances.
+    if (!isShortQuery && this._cacheProvider) {
+      const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
+      if (redisHit) {
+        redisHit._trace = { cacheHit: 'redis' };
+        return redisHit;
+      }
+    }
+
     const queryHash = crypto.createHash('sha256').update(query).digest('hex');
 
-    // ── 1.b Semantic Cosine Cache Check ──
-    if (this.semanticCacheIndex.has(queryHash)) {
+    // ── 1.b Tier 2: In-Memory LRU Cache ──────────────────────────────────────
+    if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
       const cached = this.semanticCacheIndex.get(queryHash);
-      cached._trace = { cacheHit: true };
+      cached._trace = { cacheHit: 'memory' };
       return cached;
     }
 
-    const FUZZY_WINDOW = Math.min(10, this.semanticCache.length);
-    for (let i = this.semanticCache.length - 1; i >= this.semanticCache.length - FUZZY_WINDOW; i--) {
-      const entry = this.semanticCache[i];
-      if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
-        return entry.results;
+    if (!isShortQuery) {
+      const FUZZY_WINDOW = Math.min(10, this.semanticCache.length);
+      for (let i = this.semanticCache.length - 1; i >= this.semanticCache.length - FUZZY_WINDOW; i--) {
+        const entry = this.semanticCache[i];
+        if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
+          return entry.results;
+        }
       }
     }
 
@@ -213,7 +255,8 @@ class ManasDB {
         queryVector,
         limit: limit * 2, // Grab extras from each provider for deduplication
         minScore,
-        aiModelName: aiProvider.getModelKey()
+        aiModelName: aiProvider.getModelKey(),
+        mode: options.mode || 'qa'
       })
     );
 
@@ -261,8 +304,8 @@ class ManasDB {
 
     finalResults._trace = { cacheHit: false, rrfMerged: false };
 
-    // ── Semantic caching of results (LFU/LRU bounded) ──
-    if (finalResults.length > 0) {
+    // ── In-Memory LRU cache storage (LFU/LRU bounded, Tier 2) ──
+    if (!isShortQuery && finalResults.length > 0) {
       this.semanticCacheIndex.set(queryHash, finalResults);
       if (this.semanticCache.length >= 200) {
         const evict = this.semanticCache.shift();
@@ -270,9 +313,153 @@ class ManasDB {
         this.semanticCacheIndex.delete(evictHash);
       }
       this.semanticCache.push({ query, queryVector, results: finalResults });
+
+      // ── Warm Redis Tier 1 cache with result ──
+      // Fire-and-forget: cache errors never block the response
+      if (this._cacheProvider) {
+        this._cacheProvider.set(queryVector, finalResults).catch(() => {});
+      }
     }
 
     return finalResults;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  reasoningRecall() — Hierarchical Tree Reasoning
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Hierarchical tree-based reasoning recall.
+   *
+   * Instead of flat vector search, this method:
+   *   1. Ranks document sections by query similarity.
+   *   2. Selects the best section.
+   *   3. Returns only the leaf chunks belonging to that section.
+   *
+   * PII Shield is applied AFTER leaf retrieval and BEFORE returning the response.
+   *
+   * @param {string} query
+   * @param {Object} options
+   * @param {number} [options.topSections=5]  - Number of sections to rank.
+   * @param {number} [options.topSection=0]   - Index of section to retrieve (0 = best scoring).
+   * @returns {Promise<{ section: string, score: number, leaves: Array<{ text: string, chunkIndex: number }> }>}
+   */
+  async reasoningRecall(query, options = {}) {
+    if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before reasoningRecall().');
+    if (this.databaseDrivers.length === 0) {
+      throw new Error('MANASDB_ERROR: Cannot reasoningRecall(). No valid database providers were configured.');
+    }
+    if (typeof query !== 'string' || !query.trim()) {
+      throw new Error('MANASDB_REASONING_ERROR: Query must be a non-empty string.');
+    }
+    if (!this._treeIndex.isBuilt) {
+      throw new Error('MANASDB_REASONING_ERROR: Tree index is empty. Call absorb() with documents before reasoningRecall().');
+    }
+
+    const { topSections = 5, topSection = 0 } = options;
+
+    const aiProvider = ModelFactory.getProvider(this.modelConfig);
+    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+
+    // ── Step 1: Embed query ──
+    const { vector: queryVector } = await aiProvider.embed(query, targetDims);
+
+    const isShortQuery = query.split(/\s+/).length <= 2;
+
+    // ── Tier 1: Redis Semantic Cache ──
+    if (!isShortQuery && this._cacheProvider) {
+      const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
+      if (redisHit) {
+        redisHit._trace = { cacheHit: 'redis', reasoning: true };
+        return redisHit;
+      }
+    }
+
+    const queryHash = crypto.createHash('sha256').update(query).digest('hex');
+
+    // ── Tier 2: In-Memory Cache ──
+    if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
+      const cached = this.semanticCacheIndex.get(queryHash);
+      cached._trace = { cacheHit: 'memory', reasoning: true };
+      return cached;
+    }
+
+    if (!isShortQuery) {
+      const FUZZY_WINDOW = Math.min(10, this.semanticCache.length);
+      for (let i = this.semanticCache.length - 1; i >= this.semanticCache.length - FUZZY_WINDOW; i--) {
+        const entry = this.semanticCache[i];
+        if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
+          const cached = { ...entry.results };
+          cached._trace = { cacheHit: 'memory', reasoning: true };
+          return cached;
+        }
+      }
+    }
+
+    // ── Step 2: Ensure section vectors are built (lazy on first call) ──
+    await this._treeIndex.vectorize(aiProvider, targetDims);
+
+    // ── Step 3: Rank sections by cosine similarity ──
+    const rankedSections = this._treeIndex.rankSections(queryVector, topSections);
+    if (rankedSections.length === 0) {
+      return { section: null, score: 0, leaves: [], _trace: { reasoning: true, sectionsFound: 0 } };
+    }
+
+    // ── Step 4: Select best section (index configurable) ──
+    const bestSection = rankedSections[Math.min(topSection, rankedSections.length - 1)];
+
+    // ── Step 5: Retrieve leaf nodes for best section ──
+    let leaves = this._treeIndex.getLeaves(bestSection.sectionId);
+
+    // ── Step 6: Apply PII Shield AFTER retrieval, BEFORE response (Production Guard) ──
+    if (this.piiShield.enabled) {
+      leaves = leaves.map(leaf => ({
+        ...leaf,
+        text: PIIFilter.redact(leaf.text, this.piiShield.customRules)
+      }));
+    }
+
+    const finalResult = {
+      section:  bestSection.title,
+      score:    bestSection.score,
+      leaves,
+      _trace: {
+        reasoning:      true,
+        sectionsRanked: rankedSections.length,
+        selectedSection: bestSection.sectionId,
+        cacheHit:       false
+      }
+    };
+
+    if (!isShortQuery && leaves.length > 0) {
+      this.semanticCacheIndex.set(queryHash, finalResult);
+      if (this.semanticCache.length >= 200) {
+        const evict = this.semanticCache.shift();
+        const evictHash = crypto.createHash('sha256').update(evict.query).digest('hex');
+        this.semanticCacheIndex.delete(evictHash);
+      }
+      this.semanticCache.push({ query, queryVector, results: finalResult });
+
+      if (this._cacheProvider) {
+        this._cacheProvider.set(queryVector, finalResult).catch(() => {});
+      }
+    }
+
+    return finalResult;
+  }
+
+  /**
+   * Populates the internal TreeIndex from raw chunks.
+   * Call this after absorb() if you intend to use reasoningRecall().
+   *
+   * @param {Array<{ text: string, sectionTitle?: string, chunkIndex: number }>} chunks
+   */
+  buildReasoningIndex(chunks) {
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+      throw new Error('MANASDB: buildReasoningIndex() requires a non-empty chunks array.');
+    }
+    this._treeIndex.build(chunks);
+    if (this.debug) console.log(`[ManasDB] Reasoning tree built: ${this._treeIndex.sectionCount} sections, ${this._treeIndex.leafCount} leaves.`);
   }
 
   async delete(documentId) {
@@ -280,16 +467,23 @@ class ManasDB {
   }
 
   async health() {
-    const statuses = await Promise.all(this.databaseDrivers.map(async driver => {
+    const dbStatuses = await Promise.all(this.databaseDrivers.map(async driver => {
        try {
          const ok = await driver.health();
          return { db: driver.constructor.name, status: ok ? 'OK' : 'FAIL' };
        } catch (error) {
-      if (this.debug) console.error("Polyglot Absorb Error:", error);
-      throw error;
-    }   }
-    ));
-    return statuses;
+         if (this.debug) console.error('Health check error:', error);
+         return { db: driver.constructor.name, status: 'FAIL', error: error.message };
+       }
+    }));
+
+    // Include Redis Tier 1 cache health
+    if (this._cacheProvider) {
+      const cacheOk = await this._cacheProvider.health().catch(() => false);
+      dbStatuses.push({ db: 'RedisProvider (Cache)', status: cacheOk ? 'OK' : 'FAIL' });
+    }
+
+    return dbStatuses;
   }
 }
 

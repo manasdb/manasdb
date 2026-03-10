@@ -66,7 +66,7 @@ async function runRandomTextTest() {
             console.log(`[QUERY] "${item.text}"`);
             
             // Perform Recall 
-            const results = await db.recall(item.text, { limit: 3, minScore: 0.05, profile: 'accuracy' });
+            const results = await db.recall(item.text, { mode: 'document', limit: 3, minScore: 0.05, profile: 'accuracy' });
             
             if (results.length > 0) {
                 let passed = false;

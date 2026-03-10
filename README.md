@@ -3,7 +3,8 @@
 <a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/v/@manasdb/core?style=for-the-badge&logo=npm" alt="NPM Version" /></a>
 <a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/dw/@manasdb/core?style=for-the-badge&logo=npm&label=Weekly%20Downloads" alt="Weekly Downloads" /></a>
 <a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/dt/@manasdb/core?style=for-the-badge&logo=npm&label=Total%20Downloads" alt="Total Downloads" /></a>
-<img src="https://img.shields.io/badge/License-BSL%201.1-orange?style=for-the-badge" />
+<a href="https://github.com/manasdb/manasdb/stargazers"><img src="https://img.shields.io/github/stars/manasdb/manasdb?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
+<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
 <img src="https://img.shields.io/badge/Node.js-%3E=18.0-green?style=for-the-badge&logo=nodedotjs" />
 <img src="https://img.shields.io/badge/MongoDB-Atlas-blue?style=for-the-badge&logo=mongodb" />
 <img src="https://img.shields.io/badge/PostgreSQL-pgvector-blue?style=for-the-badge&logo=postgresql" />
@@ -13,9 +14,11 @@
 
 # 🧠 ManasDB
 
-### Hybrid Retrieval Engine for MongoDB Atlas and PostgreSQL
+### The Memory Layer for AI Applications
 
-**Hybrid vector retrieval · Token-aware chunking · Self-healing retrieval · PII protection · Multi-database broadcasting**
+> ManasDB reduces RAG query latency by **97%** and delivers **29x faster** repeated queries via semantic caching — with zero changes to your application logic.
+>
+> **Node.js-native alternative to Mem0** — with local embeddings, full privacy, and MCP-native integration.
 
 [Getting Started](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Benchmark](#-benchmark) · [CLI](#-cli-tool) · [Discussions](https://github.com/manasdb/manasdb/discussions) · [License](#-license)
 
@@ -74,7 +77,39 @@ console.log(result[0].metadata.matchedChunk);
 
 ---
 
+## 🔌 MCP Integration (Claude Desktop & Cursor)
+
+Give Claude Desktop or Cursor **permanent memory** across all conversations in 60 seconds:
+
+```bash
+npx @manasdb/mcp-server setup
+```
+
+→ See [@manasdb/mcp-server](https://github.com/manasdb/mcp-server) for full Claude Desktop + Cursor setup guide.
+
+---
+
 ## 🚀 Quick Start
+
+### Quickest Start (No API Key Needed)
+
+Use local embeddings + a free MongoDB Atlas cluster:
+
+```bash
+npm install @manasdb/core mongodb
+```
+
+```javascript
+import { ManasDB } from "@manasdb/core";
+
+// Free local embeddings — no API key required
+const memory = new ManasDB({
+  uri: process.env.MONGODB_URI,
+  modelConfig: { source: "transformers" },
+});
+```
+
+> **Note**: A free MongoDB Atlas cluster is available at [mongodb.com/atlas](https://www.mongodb.com/atlas). Enable Vector Search in the UI (one click).
 
 ### Prerequisites
 
@@ -90,6 +125,7 @@ npm install @manasdb/core
 # Then, install ONLY the driver(s) for the database you plan to use:
 npm install mongodb     # If using MongoDB Atlas
 npm install pg          # If using PostgreSQL
+npm install ioredis     # Optional: For Tier 1 Redis Semantic Caching
 ```
 
 ### Environment Setup
@@ -198,14 +234,17 @@ Use it in any AI product that needs to:
 
 LangChain and LlamaIndex operate at the **application orchestration layer**. They are excellent for chaining LLM calls, routing agents, and building prompt pipelines. ManasDB is complementary — not competing.
 
-| Concern             | LangChain / LlamaIndex    | ManasDB                       |
-| ------------------- | ------------------------- | ----------------------------- |
-| **Layer**           | Application               | Storage                       |
-| **Retrieval logic** | Wired into your app code  | Embedded in database pipeline |
-| **Hybrid search**   | Manual, per-integration   | Built-in RRF + MMR            |
-| **Cost tracking**   | External tooling needed   | Native telemetry table        |
-| **PII protection**  | Plugin-dependent          | Built-in per-field redaction  |
-| **Vendor lock-in**  | High (framework coupling) | Low (swap DBs, keep API)      |
+| Concern            | LangChain / LlamaIndex    | Mem0         | ManasDB                         |
+| ------------------ | ------------------------- | ------------ | ------------------------------- |
+| **Language**       | Python-first              | Python-first | Node.js native ✅               |
+| **Local embed**    | Limited                   | ✗            | ✅ Ollama/Transformers          |
+| **Privacy**        | Cloud dependent           | Cloud only   | ✅ Fully local                  |
+| **MCP native**     | ✗                         | Partial      | ✅ Working today                |
+| **Hybrid search**  | Manual, per-integration   | Limited      | ✅ RRF + MMR built-in           |
+| **Cost tracking**  | External tooling needed   | ✗            | Native telemetry table          |
+| **PII protection** | Plugin-dependent          | ✗            | ✅ Built-in per-field redaction |
+| **Trace debug**    | ✗                         | ✗            | ✅ Every `recall()`             |
+| **Vendor lock-in** | High (framework coupling) | High         | Low (swap DBs, keep API)        |
 
 > **You can use ManasDB as the memory backend inside a LangChain agent.** They solve different problems.
 
@@ -286,21 +325,41 @@ Being honest about limits builds trust.
 
 ---
 
+## 📊 Benchmarks: Redis Tier 1 Caching vs Native DB
+
+Hierarchical Tree-Reasoning (chunked QA retrieval) requires intensive database aggregation. The optional integration of **Tier 1 Redis Caching** provides massive speedups for repeated queries.
+
+| Query Type (MongoDB) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
+| :------------------- | :------------------- | :----------------- | :--------------- |
+| **Complex QA (Q1)**  | ~120 ms              | ~4 ms              | **29.0x Faster** |
+| Short factual (Q2)   | ~3.2 ms              | ~4.2 ms            | **Bypassed\***   |
+
+| Query Type (Postgres) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
+| :-------------------- | :------------------- | :----------------- | :--------------- |
+| **Complex QA (Q1)**   | ~111 ms              | ~12 ms             | **9.0x Faster**  |
+| Short factual (Q2)    | ~3.3 ms              | ~8.6 ms            | **Bypassed\***   |
+
+> **\*Short-Query Bypass**: Queries under 3 words are instantly routed to the native database to avoid Redis TCP transport overhead, as Postgres and MongoDB execute these in < 4ms natively.
+
+---
+
 ## ✨ Features
 
 | Feature                                                         | Description                                                                                                                          |
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Polyglot Broadcasting**                                       | Write once, synchronize automatically across multiple database providers (Postgres + Mongo).                                         |
 | **Hybrid Retrieval (RRF + MMR)**                                | Fuses Dense ANN vector search and Sparse keyword search via Reciprocal Rank Fusion, then diversifies with Maximal Marginal Relevance |
+| **Hierarchical Tree Reasoning**                                 | `reasoningRecall()` maps chunks into document > section > leaf nodes to enable ultra-precise retrieval over massive texts            |
 | **Sentinel Micro-Index**                                        | Dual-layer storage: chunk-level vectors for broad recall, sentence-level micro-vectors for sentence-level QA retrieval.              |
 | **Token-Aware Chunking**                                        | Replaces naive sentence splitting with dynamic token-budget sliding windows that respect section boundaries                          |
 | **Context Healing**                                             | Reconstructs full document context from chunks on-the-fly without duplicating text in MongoDB                                        |
-| **Semantic Cosine Cache**                                       | LRU in-memory cache with SHA256 exact-hit and 0.95 cosine-similarity fuzzy-hit to eliminate redundant embeddings                     |
+| **Two-Tier Semantic Cache**                                     | Tier 1: Shared Redis Cache across servers. Tier 2: In-Memory LRU. Both short-circuit the DB if query cosine ≥ 0.95.                  |
 | **Vector Quantization**                                         | `int8` and `float16` compression for ANN search; stores full `float32` for exact cosine reranking                                    |
 | **Adaptive Retrieval Routing**                                  | Automatically detects query intent (numeric / short factual / long conceptual) and adjusts dense/sparse weights                      |
 | **PII Shield**                                                  | Regex-based redaction of emails, phone numbers, SSNs, and custom patterns before any text leaves your server                         |
 | **Trace Debugging**                                             | Every `recall()` call emits a `_trace` object: cache hit, PII tokens scrubbed, candidate counts, fallback status, final score        |
 | **Cost Telemetry**                                              | Tracks tokens, financial cost, and latency savings from deduplication — viewable via `npx manas stats`                               |
+| **Lazy-Loaded Architecture**                                    | Storage and Cache dependencies (`pg`, `mongodb`, `ioredis`) are gracefully lazy-loaded on demand. 100% crash-free zero bloat.        |
 | **Custom Plugin Drivers**                                       | Pass any embedding driver via `modelConfig: { source: 'custom', driver: MyDriver }`                                                  |
 | **Optional source protection build for commercial deployments** | `npm run build` compiles source to V8 bytecode (`.jsc`) — source logic is obfuscated and compiled into V8 bytecode.                  |
 
@@ -465,6 +524,15 @@ new ManasDB({
     enabled: true,
     customRules: [/MY_REGEX/g], // Additional PII patterns to redact
   },
+  cache: {
+    provider: "redis",
+    uri: process.env.REDIS_URI || "redis://localhost:6379",
+    semanticThreshold: 0.92, // Fuzzy matching threshold for cache hits
+    ttl: 3600, // Expiration time in seconds
+  },
+  reasoning: {
+    enabled: true, // Enables TreeIndex layout for reasoningRecall()
+  },
   telemetry: true, // Logs events to _manas_telemetry (all configured databases)
   debug: false, // Prints model/profile keys on each operation
 });
@@ -572,7 +640,7 @@ The tool auto-detects which providers are configured (`MONGODB_URI`, `POSTGRES_U
   Metric                   Raw Stack          ManasDB
   ····························································
   Absorb time              1200ms             65ms
-  Latency (avg)            310ms              2ms (-100%)
+  Latency (avg)            310ms              2ms (-99%)
   API Cost                 $0.024/10k         $0.012/10k (-50%)
   Recall Accuracy          82.4%              91.8% (+9.4%)
   Dedup / Cache            None               SHA256 + Cosine LRU
@@ -736,30 +804,23 @@ ManasDB automatically migrates and configures schemas. Both **MongoDB** and **Po
 
 ## 📄 License
 
-ManasDB is released under the **Business Source License 1.1 (BSL 1.1)**.
+**Core SDK (`@manasdb/core`)**: [MIT License](./LICENSE)
 
-**You may:**
+**ManasDB Cloud + Dashboard**: Commercial License
 
-- ✅ Use ManasDB freely for personal, research, and non-commercial projects
-- ✅ Fork, modify, and study the source code
-- ✅ Contribute back to this repository
+**Enterprise features**: Commercial License
 
-**You may not:**
-
-- ❌ Use ManasDB in a commercial product or SaaS platform without a commercial license
-- ❌ Sublicense or resell ManasDB or any derivative SDK
-
-**Change Date:** March 4, 2029 — After this date, ManasDB automatically converts to the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0).
-
-For commercial licensing enquiries, open a [GitHub Discussion](https://github.com/manasdb/manasdb/discussions).
-
-See the full license text in [LICENSE](./LICENSE).
+For commercial licensing and enterprise support, open a [GitHub Discussion](https://github.com/manasdb/manasdb/discussions).
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please open an issue before submitting a pull request.
+If ManasDB saves you time, consider supporting development:
+
+[![Support ManasDB](https://img.shields.io/badge/Support-ManasDB-%230066CC?style=for-the-badge&logo=razorpay&logoColor=white)](https://razorpay.me/@manasdb)
+
+Contributions are also welcome via PRs! Please open an issue before submitting a pull request.
 
 ```bash
 # Clone and install
@@ -776,17 +837,38 @@ npm run health
 
 ---
 
+## 📋 Changelog
+
+**v0.4.0** — Redis Tier 1 caching, Hierarchical Tree Reasoning, benchmark suite, MCP server ([@manasdb/mcp-server](https://www.npmjs.com/package/@manasdb/mcp-server))  
+**v0.3.x** — Polyglot broadcasting, PII Shield, Sentinel Micro-Index  
+**v0.1-0.2** — Core hybrid retrieval, initial release
+
+---
+
 ## 🗺️ Roadmap
 
+### Coming in v0.5 (March 2026)
+
+- [ ] Native TypeScript typings package (`@manasdb/types`)
+- [ ] Elasticsearch adapter
+
+### Coming in v0.6 (April 2026)
+
 - [ ] `npx manas ui` — web dashboard for trace visualization
+- [ ] MySQL + DynamoDB adapters
+
+### v1.0 Vision
+
+- [ ] ManasNet — agent identity protocol
 - [ ] Streaming recall support
 - [ ] Multi-tenant project isolation API
 - [ ] Pluggable reranker (cross-encoder support)
-- [ ] Native TypeScript typings package
 
 ---
 
 ## 💬 The Story Behind ManasDB
+
+I built this alone, without funding, after watching every developer I know rebuild the same fragile RAG pipeline from scratch — including myself.
 
 ManasDB started as an experiment to simplify production RAG pipelines.
 

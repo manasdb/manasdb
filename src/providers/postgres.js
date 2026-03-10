@@ -189,7 +189,7 @@ class PostgresProvider extends BaseProvider {
     }
   }
 
-  async vectorSearch({ queryVector, limit, minScore, aiModelName }) {
+  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa' }) {
     const pgQueryVector = `[${queryVector.join(',')}]`;
 
     // ── Context-Healer JOIN across the 3 new matching tables ────
@@ -215,7 +215,7 @@ class PostgresProvider extends BaseProvider {
     
     // Normalize mapping so the SDK core receives unified JSON.
     // normalizeScore clamps to [0,1] for safe polyglot score merging.
-    return res.rows.map(row => ({
+    let results = res.rows.map(row => ({
       database: 'postgres',
       chunk_id: row.vector_id,
       document_id: row.parent_id,
@@ -226,6 +226,40 @@ class PostgresProvider extends BaseProvider {
         tags: row.tags
       }]
     }));
+
+    if (mode === 'document' && results.length > 0) {
+      // Context-Healer: Join all chunks for the top parent documents
+      const parentIds = [...new Set(results.map(r => r.document_id))];
+      
+      const siblingChunks = await this.pool.query(
+        `SELECT document_id, text FROM _manas_chunks WHERE document_id = ANY($1) ORDER BY document_id, chunk_index ASC`,
+        [parentIds]
+      );
+
+      // Reconstruct full textual documents
+      const docBuilder = {};
+      for (const row of siblingChunks.rows) {
+        if (!docBuilder[row.document_id]) docBuilder[row.document_id] = [];
+        docBuilder[row.document_id].push(row.text);
+      }
+
+      // Deduplicate results by document_id (since multiple chunks from same doc might hit)
+      const uniqueDocs = new Map();
+      for (const r of results) {
+        if (!uniqueDocs.has(r.document_id) || r.score > uniqueDocs.get(r.document_id).score) {
+          uniqueDocs.set(r.document_id, r);
+        }
+      }
+
+      const healedResults = Array.from(uniqueDocs.values()).map(r => {
+        r.contentDetails[0].text = docBuilder[r.document_id].join(' ');
+        return r;
+      });
+
+      return healedResults;
+    }
+
+    return results;
   }
 
   async delete(documentId) {

@@ -164,7 +164,7 @@ class MongoProvider extends BaseProvider {
     return { database: 'mongodb', contentId: document_id, vectorIds, chunksInserted: chunks.length, isDeduplicated };
   }
 
-  async vectorSearch({ queryVector, limit, minScore, aiModelName }) {
+  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa' }) {
     const db = MongoConnection.getDb();
     const vectorsCollection = db.collection('_manas_vectors');
     const chunksCollection  = db.collection('_manas_chunks');
@@ -255,6 +255,25 @@ class MongoProvider extends BaseProvider {
       filteredRaw = annRaw.filter(res => res.contentDetails?.[0]);
     }
 
+    if (mode === 'qa') {
+      // Fast path: Just return exact matched chunk (no Context Healing join)
+      return filteredRaw.map(res => {
+        const child = res.contentDetails[0];
+        return {
+          database: 'mongodb',
+          chunk_id: child._id,
+          document_id: child.document_id,
+          score: normalizeScore(res.annScore || res.score),
+          contentDetails: [{
+            text: child.text,
+            sectionTitle: child.sectionTitle || '',
+            tags: child.tags || []
+          }]
+        };
+      }).sort((a, b) => b.score - a.score).slice(0, limit);
+    }
+
+    // mode === 'document': Full Context-Healer Join
     for (const res of filteredRaw) {
       const child = res.contentDetails[0];
       const pidStr = child.document_id.toString();
@@ -331,6 +350,10 @@ class MongoProvider extends BaseProvider {
       const telemetryCollection = db.collection('_manas_telemetry');
       telemetryCollection.insertOne(telemetryDoc).catch(() => {});
     } catch(e) {}
+  }
+  async close() {
+    await MongoConnection.disconnect();
+    if (this.debug) console.log(`[MongoProvider] Connection closed.`);
   }
 }
 

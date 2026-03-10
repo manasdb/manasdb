@@ -51,7 +51,7 @@ async function runFeaturesTest() {
         const absorb1 = await db.absorb(TEST_TEXT_1, { profile: 'speed' });
         
         const client = await db.databaseDrivers[0].pool.connect();
-        const chunkDocRes = await client.query('SELECT text FROM manas_vectors WHERE id = $1 LIMIT 1', [absorb1.inserted[0].vectorIds[0]]);
+        const chunkDocRes = await client.query('SELECT text FROM _manas_chunks WHERE document_id = $1 LIMIT 1', [absorb1.inserted[0].contentId]);
         const chunkDoc = chunkDocRes.rows[0];
         client.release();
         
