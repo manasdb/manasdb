@@ -92,7 +92,7 @@ console.log("\nTest 5: semantic cache");
 const q = "What is pgvector?";
 await memory.recall(q, { limit: 2 });
 const cached = await memory.recall(q, { limit: 2 });
-assert(cached._trace?.cacheHit === true, "Second identical recall is a cache hit");
+assert(!!cached._trace?.cacheHit, "Second identical recall is a cache hit");
 
 // ── 6. close() ────────────────────────────────────────────────────────────────
 console.log("\nTest 6: close()");

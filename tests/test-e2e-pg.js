@@ -34,7 +34,7 @@ async function runEndToEnd() {
             
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
+            telemetry: true,
             piiShield: false
         });
 

@@ -1,6 +1,16 @@
 import MongoConnection from '../core/connection.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-/**
+let sdkVersion = 'unknown';
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  let pkgPath = path.join(__dirname, '../../package.json');
+  if (!fs.existsSync(pkgPath)) pkgPath = path.join(__dirname, '../package.json');
+  sdkVersion = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+} catch (e) {}/**
  * Telemetry Utility
  * 
  * Captures anonymous performance metrics specifically focused on latency and operation success rates.
@@ -55,10 +65,17 @@ class TelemetryManager {
                     savings_latency: payload.savings_latency || 0
                 },
                 metadata: payload.metadata || {},
-                timestamp: new Date()
-            };
-
-            // Polyglot Provider dispatch
+                timestamp: new Date(),
+                retrievalPath: payload.retrievalPath || null,
+                finalScore: payload.finalScore || null,
+                retrievalMode: payload.retrievalMode || null,
+                queryLengthBucket: payload.queryLengthBucket || null,
+                chunkSizeUsed: payload.chunkSizeUsed || null,
+                embeddingProfile: payload.embeddingProfile || null,
+                savedByCache: payload.savedByCache || 0,
+                sdkVersion,
+                nodeVersion: process.version
+            };            // Polyglot Provider dispatch
             if (providers && providers.length > 0) {
                 providers.forEach(p => {
                     if (typeof p.logTelemetry === 'function') {

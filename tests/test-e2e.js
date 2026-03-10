@@ -33,7 +33,7 @@ async function runEndToEnd() {
             dbName: 'manasdb_test',
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
+            telemetry: true,
             piiShield: false
         });
 

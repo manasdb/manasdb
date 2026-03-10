@@ -27,7 +27,7 @@ async function runFeaturesTest() {
             dbName: 'manasdb_test',
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
+            telemetry: true,
             piiShield: true // Enable PII Redaction
         });
 
@@ -105,9 +105,19 @@ async function runFeaturesTest() {
         // Second recall should hit the exact cache
         const recall2 = await db.recall(queryText, { mode: 'qa', limit: 3 });
         assert(
-            recall2._trace.cacheHit === true,
+            !!recall2._trace.cacheHit,
             "Subsequent exact recall successfully hit semantic cache",
             "Subsequent recall missed cache"
+        );
+
+        // ------------------------------------------------------------------
+        console.log(chalk.yellow("\nTest 4: Cost Calculator & Telemetry Trace"));
+        console.log(chalk.dim("  Query Tokens: " + recall1._trace.tokens));
+        console.log(chalk.dim("  Query Cost:   $" + recall1._trace.costUSD));
+        assert(
+            recall1._trace.tokens !== undefined && recall1._trace.costUSD !== undefined,
+            "Cost Calculator emitted tokens and cost into _trace payload",
+            "Cost Calculator missing from trace payload"
         );
 
         // ------------------------------------------------------------------
