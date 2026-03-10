@@ -906,13 +906,6 @@ npm run health
 - [ ] `npx manas ui` — web dashboard for trace visualization
 - [ ] MySQL + DynamoDB adapters
 
-### v1.0 Vision
-
-- [ ] ManasNet — agent identity protocol
-- [ ] Streaming recall support
-- [ ] Multi-tenant project isolation API
-- [ ] Pluggable reranker (cross-encoder support)
-
 ---
 
 ## 💬 The Story Behind ManasDB
