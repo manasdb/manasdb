@@ -27,7 +27,7 @@ async function runFeaturesTest() {
             
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
+            telemetry: true,
             piiShield: true 
         });
 

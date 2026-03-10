@@ -4,7 +4,7 @@
 <a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/dw/@manasdb/core?style=for-the-badge&logo=npm&label=Weekly%20Downloads" alt="Weekly Downloads" /></a>
 <a href="https://www.npmjs.com/package/@manasdb/core"><img src="https://img.shields.io/npm/dt/@manasdb/core?style=for-the-badge&logo=npm&label=Total%20Downloads" alt="Total Downloads" /></a>
 <a href="https://github.com/manasdb/manasdb/stargazers"><img src="https://img.shields.io/github/stars/manasdb/manasdb?style=for-the-badge&logo=github" alt="GitHub Stars" /></a>
-<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" />
+<img src="https://img.shields.io/badge/License-Apache%202.0%20%2B%20Commons%20Clause-blue?style=for-the-badge" />
 <img src="https://img.shields.io/badge/Node.js-%3E=18.0-green?style=for-the-badge&logo=nodedotjs" />
 <img src="https://img.shields.io/badge/MongoDB-Atlas-blue?style=for-the-badge&logo=mongodb" />
 <img src="https://img.shields.io/badge/PostgreSQL-pgvector-blue?style=for-the-badge&logo=postgresql" />
@@ -16,15 +16,41 @@
 
 ### The Memory Layer for AI Applications
 
-> ManasDB reduces RAG query latency by **97%** and delivers **29x faster** repeated queries via semantic caching — with zero changes to your application logic.
->
-> **Node.js-native alternative to Mem0** — with local embeddings, full privacy, and MCP-native integration.
+> Built alone, without funding — because every developer I know
+> was rebuilding the same fragile RAG pipeline from scratch. There
+> had to be a better way.
 
-[Getting Started](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Benchmark](#-benchmark) · [CLI](#-cli-tool) · [Discussions](https://github.com/manasdb/manasdb/discussions) · [License](#-license)
+**ManasDB is the Node.js-native alternative to Mem0** — with local
+embeddings, full data privacy, 29x faster repeated queries, and
+MCP-native integration out of the box.
+
+No cloud lock-in. No API key required to start. Your data never
+leaves your server.
+
+[Getting Started](#-quick-start) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Benchmark](#-benchmark) · [Telemetry](#-telemetry) · [Roadmap](#-roadmap) · [CLI](#-cli-tool) · [Discussions](https://github.com/manasdb/manasdb/discussions) · [License](#-license)
 
 </div>
 
 > ⭐ **If you find ManasDB useful, please [star the repo](https://github.com/manasdb/manasdb) — it helps other developers discover it.**
+
+---
+
+## ⚡ 10-Second Demo
+
+```javascript
+import { ManasDB } from "@manasdb/core";
+
+const memory = new ManasDB({ uri: process.env.MONGODB_URI });
+await memory.init();
+
+await memory.absorb("Paris is the capital of France.");
+
+const result = await memory.recall("What is the capital of France?");
+console.log(result[0].metadata.matchedChunk);
+// → "Paris is the capital of France."
+```
+
+> That's it. Swap `MONGODB_URI` for `POSTGRES_URI` and it works with PostgreSQL. Pass both in a `databases: []` array for polyglot mode.
 
 ---
 
@@ -60,22 +86,43 @@ The result: **better accuracy, fewer services, lower cost, fully auditable pipel
 
 ---
 
-## ⚡ 10-Second Demo
+## 🆚 ManasDB vs Mem0
 
-```javascript
-import { ManasDB } from "@manasdb/core";
+| Feature          | Mem0                 | ManasDB                        |
+| ---------------- | -------------------- | ------------------------------ |
+| Language         | Python-first         | Node.js native ✅              |
+| Local embeddings | ✗                    | ✅ Ollama / Transformers       |
+| Data privacy     | Sends to their cloud | Stays on your server ✅        |
+| MCP native       | Partial              | ✅ Working today               |
+| Hybrid search    | Limited              | ✅ RRF + MMR built-in          |
+| Redis caching    | ✗                    | ✅ 29x faster repeated queries |
+| Tree Reasoning   | ✗                    | ✅ Native reasoningRecall()    |
+| PII protection   | ✗                    | ✅ Built-in per-field          |
+| Trace debugging  | ✗                    | ✅ Every recall()              |
+| Telemetry        | Sends to their cloud | Your DB only ✅                |
 
-const memory = new ManasDB({ uri: process.env.MONGODB_URI });
-await memory.init();
+## 🤝 Works alongside LangChain / LlamaIndex
 
-await memory.absorb("Paris is the capital of France.");
+ManasDB operates at the **storage layer**, not the application layer.
+LangChain and LlamaIndex are excellent for chaining LLM calls and
+routing agents — ManasDB is the memory backend that plugs into them.
+They're complementary, not competing.
 
-const result = await memory.recall("What is the capital of France?");
-console.log(result[0].metadata.matchedChunk);
-// → "Paris is the capital of France."
-```
+---
 
-> That's it. Swap `MONGODB_URI` for `POSTGRES_URI` and it works with PostgreSQL. Pass both in a `databases: []` array for polyglot mode.
+## 🌐 Why Use Multiple Databases?
+
+Polyglot broadcasting — writing to both MongoDB and PostgreSQL simultaneously — isn't about redundancy for its own sake. Real-world use cases include:
+
+| Scenario                          | How Polyglot Helps                                    |
+| --------------------------------- | ----------------------------------------------------- |
+| **Database Migration**            | Run both in parallel; flip traffic when confident     |
+| **Cross-Region Replication**      | Mongo Atlas in US-East, Postgres in EU-West for GDPR  |
+| **Hybrid Storage Strategy**       | Hot semantic data on Mongo, cold archival on Postgres |
+| **Retrieval Engine Benchmarking** | Query both, compare scores, decide which to keep      |
+| **Disaster Recovery**             | One provider down → SDK falls back to the other       |
+
+For single-database deployments a single `uri` is enough — multi-DB is opt-in.
 
 ---
 
@@ -153,7 +200,10 @@ const memory = new ManasDB({
   dbName: "my_ai_app",
   projectName: "knowledge_base",
   modelConfig: { source: "transformers" }, // Free local embeddings
-  telemetry: true,
+  telemetry: true, // Default: true. Records performance metrics to
+  // _manas_telemetry in your own database.
+  // Powers npx manas stats + ui dashboard.
+  // Set false to disable. Data never leaves your server.
   debug: false,
 });
 ```
@@ -217,166 +267,6 @@ console.log(treeResult._trace);
 
 ---
 
-## What Is ManasDB?
-
-ManasDB is a production-focused Node.js SDK that **adds semantic retrieval capabilities** via a Polyglot Architecture. It allows you to orchestrate document ingestion and retrieval simultaneously across **MongoDB Atlas** and **PostgreSQL (`pgvector`)**. Unlike LangChain or LlamaIndex wrappers, ManasDB operates at the storage layer — giving you direct, auditable control over every pipeline stage.
-
-Use it in any AI product that needs to:
-
-- Store and retrieve semantic knowledge from a document corpus
-- Ask precise factual questions against large unstructured text
-- Cache repeated queries to slash API embedding costs
-- Enforce PII redaction before data reaches cloud LLMs
-- Protect proprietary retrieval logic via optional bytecode build
-
-> **Mental model:**
-> Just as Redis is the caching layer and Elasticsearch is the search layer,
-> **ManasDB is the semantic memory layer** — drop it in between your application and your AI models.
-
----
-
-## 🤝 Contributing
-
-If ManasDB saves you time, consider supporting development:
-
-[![Support ManasDB](https://img.shields.io/badge/Support-ManasDB-%230066CC?style=for-the-badge&logo=razorpay&logoColor=white)](https://razorpay.me/@manasdb)
-
-Contributions are also welcome via PRs! Please open an issue before submitting a pull request.
-
-```bash
-# Clone and install
-git clone https://github.com/manasdb/manasdb.git
-cd manasdb
-npm install
-
-# Run the test suite
-npm run test:all
-
-# Run health check
-npm run health
-```
-
----
-
-## 🆚 Why Not LangChain / LlamaIndex?
-
-LangChain and LlamaIndex operate at the **application orchestration layer**. They are excellent for chaining LLM calls, routing agents, and building prompt pipelines. ManasDB is complementary — not competing.
-
-| Concern            | LangChain / LlamaIndex    | Mem0         | ManasDB                         |
-| ------------------ | ------------------------- | ------------ | ------------------------------- |
-| **Language**       | Python-first              | Python-first | Node.js native ✅               |
-| **Local embed**    | Limited                   | ✗            | ✅ Ollama/Transformers          |
-| **Privacy**        | Cloud dependent           | Cloud only   | ✅ Fully local                  |
-| **MCP native**     | ✗                         | Partial      | ✅ Working today                |
-| **Hybrid search**  | Manual, per-integration   | Limited      | ✅ RRF + MMR built-in           |
-| **Caching**        | Custom integration req.   | Limited      | ✅ Tier 1 Redis & In-Memory LRU |
-| **Tree Reasoning** | Manual chain building     | ✗            | ✅ Native `reasoningRecall()`   |
-| **Cost tracking**  | External tooling needed   | ✗            | Native telemetry table          |
-| **PII protection** | Plugin-dependent          | ✗            | ✅ Built-in per-field redaction |
-| **Trace debug**    | ✗                         | ✗            | ✅ Every `recall()`             |
-| **Vendor lock-in** | High (framework coupling) | High         | Low (swap DBs, keep API)        |
-
-> **You can use ManasDB as the memory backend inside a LangChain agent.** They solve different problems.
-
----
-
-## 🌐 Why Use Multiple Databases?
-
-Polyglot broadcasting — writing to both MongoDB and PostgreSQL simultaneously — isn't about redundancy for its own sake. Real-world use cases include:
-
-| Scenario                          | How Polyglot Helps                                    |
-| --------------------------------- | ----------------------------------------------------- |
-| **Database Migration**            | Run both in parallel; flip traffic when confident     |
-| **Cross-Region Replication**      | Mongo Atlas in US-East, Postgres in EU-West for GDPR  |
-| **Hybrid Storage Strategy**       | Hot semantic data on Mongo, cold archival on Postgres |
-| **Retrieval Engine Benchmarking** | Query both, compare scores, decide which to keep      |
-| **Disaster Recovery**             | One provider down → SDK falls back to the other       |
-
-For single-database deployments a single `uri` is enough — multi-DB is opt-in.
-
----
-
-## 🏗️ System Architecture
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   Your Application                  │
-└────────────────────────┬────────────────────────────┘
-                         │  absorb() / recall() / reasoningRecall()
-┌────────────────────────▼─────────────────────────────┐
-│                   ManasDB SDK                        │
-│                                                      │
-│  ┌──────────────┐  ┌───────────┐  ┌──────────────┐   │
-│  │  PII Shield  │  │  Chunker  │  │ Tree Reason  │   │
-│  └──────────────┘  └─────┬─────┘  └──────────────┘   │
-│                           │                          │
-│  ┌────────────────────────▼──────────────────────┐   │
-│  │          Embedding Provider                   │   │
-│  │  OpenAI · Gemini · Ollama · Transformers      │   │
-│  └────────────────────────┬──────────────────────┘   │
-│                           │                          │
-│  ┌────────────────────────▼──────────────────────┐   │
-│  │  Tier 1 Redis Cache <──> Tier 2 In-Memory LRU │   │
-│  └────────────────────────┬──────────────────────┘   │
-│                           │ Polyglot Broadcast       │
-│            ┌──────────────┴───────────────┐          │
-│            ▼                              ▼          │
-│  ┌─────────────────┐           ┌──────────────────┐  │
-│  │  MongoDB Atlas  │           │   PostgreSQL     │  │
-│  │  $vectorSearch  │           │   pgvector       │  │
-│  │  Full-text idx  │           │   tsvector       │  │
-│  └─────────────────┘           └──────────────────┘  │
-└──────────────────────────────────────────────────────┘
-```
-
----
-
-## 🎯 Real-World Use Cases
-
-| Industry                 | Use Case                                                         |
-| ------------------------ | ---------------------------------------------------------------- |
-| **Customer Support**     | AI chatbot that answers from your product docs + ticket history  |
-| **Developer Tools**      | Semantic search over API references and changelogs               |
-| **Legal / Compliance**   | Clause retrieval from contracts with PII auto-redaction          |
-| **Healthcare**           | Patient-record Q&A with strict PII Shield enabled                |
-| **E-commerce**           | Product recommendation from natural-language intent              |
-| **Enterprise Knowledge** | Internal wiki search that understands context, not just keywords |
-| **EdTech**               | Curriculum-aware Q&A that cites exact lesson passages            |
-
-ManasDB is optimised for **10K – 10M vectors**. Typical deployment: a monorepo Node.js backend, one Mongo Atlas free/shared cluster, and a managed Postgres instance.
-
----
-
-## 🚫 When NOT to Use ManasDB
-
-Being honest about limits builds trust.
-
-- **Billion-scale vector search** — use Pinecone, Milvus, or Weaviate instead; ManasDB is optimised for mid-scale RAG (up to ~10M vectors per project).
-- **GPU-accelerated ANN** — ManasDB relies on Atlas `$vectorSearch` and `pgvector`; neither runs on-device GPU cores.
-- **Graph traversal / knowledge graphs** — use Neo4j or Amazon Neptune; ManasDB is flat-document oriented.
-- **Streaming ingestion at millions of events/sec** — ManasDB is batch/document ingestion, not a streaming pipeline.
-- **Already deeply coupled to LangChain memory** — if your stack relies on `ConversationBufferMemory` patterns, adopt ManasDB incrementally.
-
----
-
-## 📊 Benchmarks: Redis Tier 1 Caching vs Native DB
-
-Hierarchical Tree-Reasoning (chunked QA retrieval) requires intensive database aggregation. The optional integration of **Tier 1 Redis Caching** provides massive speedups for repeated queries.
-
-| Query Type (MongoDB) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
-| :------------------- | :------------------- | :----------------- | :--------------- |
-| **Complex QA (Q1)**  | ~120 ms              | ~4 ms              | **29.0x Faster** |
-| Short factual (Q2)   | ~3.2 ms              | ~4.2 ms            | **Bypassed\***   |
-
-| Query Type (Postgres) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
-| :-------------------- | :------------------- | :----------------- | :--------------- |
-| **Complex QA (Q1)**   | ~111 ms              | ~12 ms             | **9.0x Faster**  |
-| Short factual (Q2)    | ~3.3 ms              | ~8.6 ms            | **Bypassed\***   |
-
-> **\*Short-Query Bypass**: Queries under 3 words are instantly routed to the native database to avoid Redis TCP transport overhead, as Postgres and MongoDB execute these in < 4ms natively.
-
----
-
 ## ✨ Features
 
 | Feature                                                         | Description                                                                                                                          |
@@ -399,195 +289,106 @@ Hierarchical Tree-Reasoning (chunked QA retrieval) requires intensive database a
 
 ---
 
-## ⚠️ Known Constraints
+## 📊 Benchmarks
 
-- Requires MongoDB Atlas Vector Search **or** PostgreSQL with `pgvector` enabled (or both).
-- Sentence micro-index increases vector count (~1.5–2× storage) but boosts short-form QA precision ~30%.
-- Quantized vectors (`int8` / `float16`) trade minimal ANN precision for reduced storage.
-- Documents > 50 K tokens are auto-chunked to prevent excessive memory use.
-- Retrieval performance depends on connection latency to your cluster.
+### Redis Tier 1 Caching vs Native DB
 
----
+Hierarchical Tree-Reasoning (chunked QA retrieval) requires intensive database aggregation. The optional integration of **Tier 1 Redis Caching** provides massive speedups for repeated queries.
 
-## 📐 Architecture
+| Query Type (MongoDB) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
+| :------------------- | :------------------- | :----------------- | :--------------- |
+| **Complex QA (Q1)**  | ~120 ms              | ~4 ms              | **29.0x Faster** |
+| Short factual (Q2)   | ~3.2 ms              | ~4.2 ms            | **Bypassed\***   |
 
-```
-ABSORB PIPELINE
-───────────────
-Raw Text
-  │
-  ├─ PII Shield (optional redaction)
-  │
-  ├─ Token-Aware Chunker (_tokenAwareChunk)
-  │     ├─ Section-boundary detection (### headers / double-newlines)
-  │     ├─ Dynamic token-budget sliding window (default 100 tokens)
-  │     └─ Overlap buffer (default 20 tokens) for context continuity
-  │
-  ├─ Chunk Embedding + Deduplication (content-hash SHA256)
-  │     └─ int8 / float16 / float32 quantization guardrail
-  │
-  └─ Sentence Micro-Index (per-chunk sentence vectors)
-        └─ Stored with profile suffix `_sentence` for QA mode
+| Query Type (Postgres) | Tree Search (Native) | Redis Tier 1 Cache | Performance Gain |
+| :-------------------- | :------------------- | :----------------- | :--------------- |
+| **Complex QA (Q1)**   | ~111 ms              | ~12 ms             | **9.0x Faster**  |
+| Short factual (Q2)    | ~3.3 ms              | ~8.6 ms            | **Bypassed\***   |
 
-  ├─ Provider Broadcast (Concurrent Insertions)
-  │     ├─ MongoDB Driver   → Inserts into _manas_documents / _manas_chunks / _manas_vectors
-  │     └─ PostgreSQL Driver → Inserts into _manas_documents / _manas_chunks / _manas_vectors
-  │
-  └─ Polyglot Telemetry Broadcast → _manas_telemetry (all active databases)
-
-RECALL PIPELINE
-───────────────
-Query String
-  │
-  ├─ [Cache] Tier 1: Dedicated Redis shared Cache
-  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB)
-  │
-  ├─ [Cache] Tier 2: In-Memory Node.js LRU Cache
-  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB + Redis)
-  │
-  ├─ Adaptive Mode Detection
-  │     ├─ < 3 tokens   → DB Bypass (Short Factual Query)
-  │     ├─ Named entity → Dense-heavy (0.8 / 0.2)
-  │     ├─ Numeric      → Sparse-heavy (0.2 / 0.8)
-  │     └─ Long query   → Dense-heavy (0.8 / 0.2)
-  │
-  ├─ Multi-Database Vector Search Mapping
-  │     ├─ [A] Atlas $vectorSearch (ANN)
-  │     ├─ [B] Postgres `<=>` Cosine Sorting (pgvector)
-  │
-  ├─ [C] Default recall(): Reciprocal Rank Fusion / Rerank
-  │     └─ Returns merged dense + sparse unified scores
-  │
-  ├─ [D] reasoningRecall(): Hierarchical Tree Search
-  │     └─ Ranks document > Parses best Section > Returns Leaf nodes
-  │
-  ├─ [E] Exact Cosine Rerank
-  ├─ [F] Context Healing — Reconstruct full parent document from chunks
-  │
-  └─ PII Output Shield (Optional) → SearchFormatter (Polyglot Schema)
-        └─ Returns matchedChunk + tokens/cost USD metrics
-```
+> **\*Short-Query Bypass**: Queries under 3 words are instantly routed to the native database to avoid Redis TCP transport overhead, as Postgres and MongoDB execute these in < 4ms natively.
 
 ---
 
-## 🗂️ Project Structure
+### Full Pipeline Benchmark
 
-```
-manasdb/
-├── bin/
-│   └── manas.js            # CLI tool (stats, health, trace, benchmark)
-├── src/
-│   ├── index.js            # Main SDK class (ManasDB) — URI auto-discovery + polyglot orchestration
-│   ├── benchmark.js        # Benchmark suite runner
-│   ├── health.js           # Health check script
-│   ├── providers/          # Storage providers (Polyglot Persistence)
-│   │   ├── base.js             # BaseProvider interface
-│   │   ├── mongodb.js          # MongoProvider (MongoDB Atlas)
-│   │   └── postgres.js         # PostgresProvider (pgvector)
-│   ├── core/
-│   │   ├── connection.js       # MongoDB singleton connection manager
-│   │   ├── memory-engine.js    # Low-level memory operations
-│   │   ├── model-factory.js    # Provider factory + custom driver support
-│   │   └── providers/
-│   │       ├── base.provider.js
-│   │       ├── cloud.provider.js    # OpenAI + Gemini
-│   │       ├── ollama.provider.js
-│   │       └── transformers.provider.js  # Local @xenova/transformers
-│   └── providers/             # Storage drivers (DB-agnostic)
-│       ├── base.js            #   BaseProvider interface all drivers extend
-│       ├── factory.js         #   ProviderFactory — lazy dynamic import registry (Plan 10)
-│       ├── mongodb.js         #   MongoDB Atlas vector search driver
-│       └── postgres.js        #   PostgreSQL + pgvector driver
-│   └── utils/
-│       ├── CostCalculator.js   # Token estimation & financial cost calc
-│       ├── ModelRegistry.js    # Dimension lookup per model
-│       ├── PIIFilter.js        # PII redaction engine
-│       ├── SearchFormatter.js  # Result formatting utilities
-│       ├── Telemetry.js        # Polyglot Fire-and-forget event logging
-│       └── TokenCounter.js     # Token counting helpers
-├── tests/
-│   ├── test-e2e.js            # MongoDB E2E QA test suite
-│   ├── test-e2e-pg.js         # PostgreSQL E2E QA test suite
-│   ├── test-features.js       # MongoDB feature tests (PII, dedup, cache)
-│   ├── test-features-pg.js    # PostgreSQL feature tests
-│   ├── test-large-random.js   # MongoDB large document tests
-│   ├── test-large-random-pg.js # PostgreSQL large document tests
-│   ├── test-polyglot-e2e.js   # Polyglot (Mongo+Postgres) E2E tests
-│   └── test-polyglot-features.js # Polyglot feature tests
-├── examples/                  # Runnable copy-paste examples
-│   ├── mongodb-basic/         # MongoDB-only starter project
-│   │   ├── index.js           #   Working example code
-│   │   ├── test.js            #   Self-contained test suite (16 assertions)
-│   │   └── README.md
-│   ├── postgres-basic/        # PostgreSQL-only starter project
-│   │   ├── index.js
-│   │   ├── test.js
-│   │   └── README.md
-│   └── polyglot-mode/         # Both providers simultaneously
-│       ├── index.js
-│       ├── test.js            #   Polyglot-specific assertions (health, merge, dedup)
-│       └── README.md
-├── docs/                      # Architecture decision documents (PLAN_01 through PLAN_10)
-├── dist/                      # Compiled bytecode output (npm run build)
-├── build.js                   # Security compiler (esbuild + bytenode)
-├── verify-lazy-loading.js     # Proves lazy-loading works (11 assertions)
-└── package.json
+Run the built-in benchmark suite against your own cluster:
+
+```bash
+npx manas benchmark
 ```
 
-> See [`/examples`](./examples) for self-contained, runnable projects — copy one into your own repo to get started immediately.
+The tool auto-detects which providers are configured (`MONGODB_URI`, `POSTGRES_URI`) and produces **three independent sections** — one per provider and one for the polyglot combination. Sample output with both providers active:
 
----
+```
+=====================================================
+🚀  MANASDB VS. TRADITIONAL PIPELINE BENCHMARK
+=====================================================
 
-## ⚙️ Configuration Reference
+  Detected Providers:
+    ✔ MongoDB   (MONGODB_URI)
+    ✔ PostgreSQL (POSTGRES_URI / DATABASE_URL)
 
-```javascript
-new ManasDB({
-  // ── Single Database (Auto-Discovery) ────────────────────────────────
-  // Supply a connection string. ManasDB reads the prefix to mount the
-  // correct provider automatically. No dbType needed.
-  uri: process.env.DATABASE_URI, // 'mongodb://' or 'postgres://' detected automatically
-  dbName: "my_database", // Optional: required for MongoDB only
+────────────────────────────────────────────────────────────
+📦  SECTION 1 — MongoDB Only
+────────────────────────────────────────────────────────────
 
-  // ── OR – Explicit single DB with dbType override ─────────────────────
-  // uri: process.env.DATABASE_URI,
-  // dbType: 'postgres',   // Force: 'mongodb' | 'postgres' | 'pg'
+  MongoDB
+  ············································~~~~~~~~~~~~~~~~
+  Metric                   Raw Stack          ManasDB
+  ····························································
+  Absorb time              1200ms             673ms
+  Latency (avg)            310ms              9ms (-97%)
+  API Cost                 $0.024/10k         $0.012/10k (-50%)
+  Recall Accuracy          82.4%              91.2% (+8.8%)
+  Dedup / Cache            None               SHA256 + Cosine LRU
+  PII Protection           Manual             Built-in (per-field)
+  ····························································
 
-  // ── OR – Polyglot Mode (Multiple Databases) ──────────────────────────
-  // databases: [
-  //   { type: "mongodb", uri: process.env.MONGODB_URI, dbName: "my_database" },
-  //   { type: "postgres", uri: process.env.POSTGRES_URI },
-  // ],
+────────────────────────────────────────────────────────────
+🐘  SECTION 2 — PostgreSQL Only
+────────────────────────────────────────────────────────────
 
-  projectName: "my_project", // Namespace — isolates data per project.
-  modelConfig: {
-    source: "gemini", // 'transformers' | 'ollama' | 'openai' | 'gemini' | 'custom'
-    model: "gemini-embedding-001", // Optional. Provider-specific model name.
-    driver: MyCustomDriver, // Required only when source: 'custom'
-  },
-  piiShield: {
-    enabled: true,
-    customRules: [/MY_REGEX/g], // Additional PII patterns to redact
-  },
-  cache: {
-    provider: "redis",
-    uri: process.env.REDIS_URI || "redis://localhost:6379",
-    semanticThreshold: 0.92, // Fuzzy matching threshold for cache hits
-    ttl: 3600, // Expiration time in seconds
-  },
-  reasoning: {
-    enabled: true, // Enables TreeIndex layout for reasoningRecall()
-  },
-  telemetry: true, // Logs events to _manas_telemetry (all configured databases)
-  debug: false, // Prints model/profile keys on each operation
-});
+  PostgreSQL
+  ····························································
+  Metric                   Raw Stack          ManasDB
+  ····························································
+  Absorb time              1200ms             65ms
+  Latency (avg)            310ms              2ms (-99%)
+  API Cost                 $0.024/10k         $0.012/10k (-50%)
+  Recall Accuracy          82.4%              91.8% (+9.4%)
+  Dedup / Cache            None               SHA256 + Cosine LRU
+  PII Protection           Manual             Built-in (per-field)
+  ····························································
+
+────────────────────────────────────────────────────────────
+🌐  SECTION 3 — Polyglot (MongoDB + PostgreSQL)
+────────────────────────────────────────────────────────────
+
+  MongoDB + PostgreSQL
+  ····························································
+  Metric                   Raw Stack          ManasDB
+  ····························································
+  Absorb time              1201ms             399ms
+  Latency (avg)            310ms              8ms (-97%)
+  API Cost                 $0.024/10k         $0.012/10k (-50%)
+  Recall Accuracy          82.4%              92.1% (+9.7%)
+  Dedup / Cache            None               SHA256 + Cosine LRU
+  PII Protection           Manual             Built-in (per-field)
+  ····························································
+
+════════════════════════════════════════════════════════════
+  Notes:
+  • Raw stack latency (310ms) is a representative baseline for a
+    naive single-DB lookup with no caching or deduplication.
+  • All ManasDB scores are normalized to [0,1] across providers
+    for unbiased polyglot score merging.
+  • Cost savings are driven by SHA256 dedup + float16 compression.
+════════════════════════════════════════════════════════════
 ```
 
-### 🚨 Strict Mode (Zero-Config Protection)
-
-To prevent silent failures if you accidentally omit a database URI (or forget to load a `.env` file), ManasDB implements a **Strict Mode**.
-
-- Initializing `new ManasDB({})` and calling `await memory.init()` without databases will **succeed and issue a warning** (so it never crashes your server on boot).
-- However, if your application tries to execute `await memory.absorb()` or `await memory.recall()` when zero databases are loaded, ManasDB will **Fail Fast** and throw a descriptive error: `MANASDB_ERROR: Cannot absorb(). No valid database providers were configured`.
+> Results vary by cluster tier, embedding model, and dataset size.
+> Run `npx manas benchmark` against your own URIs to get precise numbers for your setup.
+> Latency numbers exclude embedding API latency and measure retrieval pipeline time only.
 
 ---
 
@@ -674,99 +475,137 @@ const result = await memory.reasoningRecall(
 
 ---
 
-## 📊 Benchmark
-
-Run the built-in benchmark suite against your own cluster:
-
-```bash
-npx manas benchmark
-```
-
-The tool auto-detects which providers are configured (`MONGODB_URI`, `POSTGRES_URI`) and produces **three independent sections** — one per provider and one for the polyglot combination. Sample output with both providers active:
+## 🏗️ System Architecture
 
 ```
-=====================================================
-🚀  MANASDB VS. TRADITIONAL PIPELINE BENCHMARK
-=====================================================
-
-  Detected Providers:
-    ✔ MongoDB   (MONGODB_URI)
-    ✔ PostgreSQL (POSTGRES_URI / DATABASE_URL)
-
-────────────────────────────────────────────────────────────
-📦  SECTION 1 — MongoDB Only
-────────────────────────────────────────────────────────────
-
-  MongoDB
-  ············································~~~~~~~~~~~~~~~~
-  Metric                   Raw Stack          ManasDB
-  ····························································
-  Absorb time              1200ms             673ms
-  Latency (avg)            310ms              9ms (-97%)
-  API Cost                 $0.024/10k         $0.012/10k (-50%)
-  Recall Accuracy          82.4%              91.2% (+8.8%)
-  Dedup / Cache            None               SHA256 + Cosine LRU
-  PII Protection           Manual             Built-in (per-field)
-  ····························································
-
-────────────────────────────────────────────────────────────
-🐘  SECTION 2 — PostgreSQL Only
-────────────────────────────────────────────────────────────
-
-  PostgreSQL
-  ····························································
-  Metric                   Raw Stack          ManasDB
-  ····························································
-  Absorb time              1200ms             65ms
-  Latency (avg)            310ms              2ms (-99%)
-  API Cost                 $0.024/10k         $0.012/10k (-50%)
-  Recall Accuracy          82.4%              91.8% (+9.4%)
-  Dedup / Cache            None               SHA256 + Cosine LRU
-  PII Protection           Manual             Built-in (per-field)
-  ····························································
-
-────────────────────────────────────────────────────────────
-🌐  SECTION 3 — Polyglot (MongoDB + PostgreSQL)
-────────────────────────────────────────────────────────────
-
-  MongoDB + PostgreSQL
-  ····························································
-  Metric                   Raw Stack          ManasDB
-  ····························································
-  Absorb time              1201ms             399ms
-  Latency (avg)            310ms              8ms (-97%)
-  API Cost                 $0.024/10k         $0.012/10k (-50%)
-  Recall Accuracy          82.4%              92.1% (+9.7%)
-  Dedup / Cache            None               SHA256 + Cosine LRU
-  PII Protection           Manual             Built-in (per-field)
-  ····························································
-
-════════════════════════════════════════════════════════════
-  Notes:
-  • Raw stack latency (310ms) is a representative baseline for a
-    naive single-DB lookup with no caching or deduplication.
-  • All ManasDB scores are normalized to [0,1] across providers
-    for unbiased polyglot score merging.
-  • Cost savings are driven by SHA256 dedup + float16 compression.
-════════════════════════════════════════════════════════════
+┌─────────────────────────────────────────────────────┐
+│                   Your Application                  │
+└────────────────────────┬────────────────────────────┘
+                         │  absorb() / recall() / reasoningRecall()
+┌────────────────────────▼─────────────────────────────┐
+│                   ManasDB SDK                        │
+│                                                      │
+│  ┌──────────────┐  ┌───────────┐  ┌──────────────┐   │
+│  │  PII Shield  │  │  Chunker  │  │ Tree Reason  │   │
+│  └──────────────┘  └─────┬─────┘  └──────────────┘   │
+│                           │                          │
+│  ┌────────────────────────▼──────────────────────┐   │
+│  │          Embedding Provider                   │   │
+│  │  OpenAI · Gemini · Ollama · Transformers      │   │
+│  └────────────────────────┬──────────────────────┘   │
+│                           │                          │
+│  ┌────────────────────────▼──────────────────────┐   │
+│  │  Tier 1 Redis Cache <──> Tier 2 In-Memory LRU │   │
+│  └────────────────────────┬──────────────────────┘   │
+│                           │ Polyglot Broadcast       │
+│            ┌──────────────┴───────────────┐          │
+│            ▼                              ▼          │
+│  ┌─────────────────┐           ┌──────────────────┐  │
+│  │  MongoDB Atlas  │           │   PostgreSQL     │  │
+│  │  $vectorSearch  │           │   pgvector       │  │
+│  │  Full-text idx  │           │   tsvector       │  │
+│  └─────────────────┘           └──────────────────┘  │
+└──────────────────────────────────────────────────────┘
 ```
-
-> Results vary by cluster tier, embedding model, and dataset size.
-> Run `npx manas benchmark` against your own URIs to get precise numbers for your setup.
-> Latency numbers exclude embedding API latency and measure retrieval pipeline time only.
 
 ---
 
-## 🏢 Enterprise Readiness
+## 📐 Pipeline Architecture
 
-ManasDB is designed to scale with MongoDB Atlas vector workloads. Here is how it handles production demands:
+```
+ABSORB PIPELINE
+───────────────
+Raw Text
+  │
+  ├─ PII Shield (optional redaction)
+  │
+  ├─ Token-Aware Chunker (_tokenAwareChunk)
+  │     ├─ Section-boundary detection (### headers / double-newlines)
+  │     ├─ Dynamic token-budget sliding window (default 100 tokens)
+  │     └─ Overlap buffer (default 20 tokens) for context continuity
+  │
+  ├─ Chunk Embedding + Deduplication (content-hash SHA256)
+  │     └─ int8 / float16 / float32 quantization guardrail
+  │
+  └─ Sentence Micro-Index (per-chunk sentence vectors)
+        └─ Stored with profile suffix `_sentence` for QA mode
 
-- **10M+ Vectors:** Vector indexing scalability is handled by MongoDB Atlas `$vectorSearch` (HNSW). Atlas clusters commonly support tens of millions of vectors
-  depending on cluster tier.
-- **Index Stability:** Prevents duplicate index creation natively. Recognizes when developers switch embedding models and provides a safety-gated `npx manas index-prune` command to gracefully wipe stale dimension indexes.
-- **No Data Leaks:** Telemetry writes strictly to the `_manas_telemetry` collection on _your own_ cluster. **Zero text or PII is ever logged**—only operational metrics like `durationMs` and numeric `costs`.
-- **Concurrency Safety:** Read paths (`recall`) are completely stateless. Write paths (`absorb`) are protected by atomic `$setOnInsert` upserts, preventing vector duplication when requests race.
-- **Bounded Memory:** Hard caps ensure stable heap. The `limit: 5000` is truncated by `fetchLimit: 200` to prevent memory flooding during reranking. Context-healing caps out at 100 chunks per document lookup, and sentence ingestion occurs in garbage-collected batches.
+  ├─ Provider Broadcast (Concurrent Insertions)
+  │     ├─ MongoDB Driver   → Inserts into _manas_documents / _manas_chunks / _manas_vectors
+  │     └─ PostgreSQL Driver → Inserts into _manas_documents / _manas_chunks / _manas_vectors
+  │
+  └─ Polyglot Telemetry Broadcast → _manas_telemetry (all active databases)
+
+RECALL PIPELINE
+───────────────
+Query String
+  │
+  ├─ [Cache] Tier 1: Dedicated Redis shared Cache
+  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB)
+  │
+  ├─ [Cache] Tier 2: In-Memory Node.js LRU Cache
+  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB + Redis)
+  │
+  ├─ Adaptive Mode Detection
+  │     ├─ < 3 tokens   → DB Bypass (Short Factual Query)
+  │     ├─ Named entity → Dense-heavy (0.8 / 0.2)
+  │     ├─ Numeric      → Sparse-heavy (0.2 / 0.8)
+  │     └─ Long query   → Dense-heavy (0.8 / 0.2)
+  │
+  ├─ Multi-Database Vector Search Mapping
+  │     ├─ [A] Atlas $vectorSearch (ANN)
+  │     ├─ [B] Postgres `<=>` Cosine Sorting (pgvector)
+  │
+  ├─ [C] Default recall(): Reciprocal Rank Fusion / Rerank
+  │     └─ Returns merged dense + sparse unified scores
+  │
+  ├─ [D] reasoningRecall(): Hierarchical Tree Search
+  │     └─ Ranks document > Parses best Section > Returns Leaf nodes
+  │
+  ├─ [E] Exact Cosine Rerank
+  ├─ [F] Context Healing — Reconstruct full parent document from chunks
+  │
+  └─ PII Output Shield (Optional) → SearchFormatter (Polyglot Schema)
+        └─ Returns matchedChunk + tokens/cost USD metrics
+```
+
+---
+
+## 🎯 Real-World Use Cases
+
+| Industry                 | Use Case                                                         |
+| ------------------------ | ---------------------------------------------------------------- |
+| **Customer Support**     | AI chatbot that answers from your product docs + ticket history  |
+| **Developer Tools**      | Semantic search over API references and changelogs               |
+| **Legal / Compliance**   | Clause retrieval from contracts with PII auto-redaction          |
+| **Healthcare**           | Patient-record Q&A with strict PII Shield enabled                |
+| **E-commerce**           | Product recommendation from natural-language intent              |
+| **Enterprise Knowledge** | Internal wiki search that understands context, not just keywords |
+| **EdTech**               | Curriculum-aware Q&A that cites exact lesson passages            |
+
+ManasDB is optimised for **10K – 10M vectors**. Typical deployment: a monorepo Node.js backend, one Mongo Atlas free/shared cluster, and a managed Postgres instance.
+
+---
+
+## 🚫 When NOT to Use ManasDB
+
+Being honest about limits builds trust.
+
+- **Billion-scale vector search** — use Pinecone, Milvus, or Weaviate instead; ManasDB is optimised for mid-scale RAG (up to ~10M vectors per project).
+- **GPU-accelerated ANN** — ManasDB relies on Atlas `$vectorSearch` and `pgvector`; neither runs on-device GPU cores.
+- **Graph traversal / knowledge graphs** — use Neo4j or Amazon Neptune; ManasDB is flat-document oriented.
+- **Streaming ingestion at millions of events/sec** — ManasDB is batch/document ingestion, not a streaming pipeline.
+- **Already deeply coupled to LangChain memory** — if your stack relies on `ConversationBufferMemory` patterns, adopt ManasDB incrementally.
+
+---
+
+## ⚠️ Known Constraints
+
+- Requires MongoDB Atlas Vector Search **or** PostgreSQL with `pgvector` enabled (or both).
+- Sentence micro-index increases vector count (~1.5–2× storage) but boosts short-form QA precision ~30%.
+- Quantized vectors (`int8` / `float16`) trade minimal ANN precision for reduced storage.
+- Documents > 50 K tokens are auto-chunked to prevent excessive memory use.
+- Retrieval performance depends on connection latency to your cluster.
 
 ---
 
@@ -802,6 +641,130 @@ npx manas benchmark
   "costUSD": 0.00024
 }
 ```
+
+---
+
+## 📡 Telemetry
+
+ManasDB records operational metrics to `_manas_telemetry` in **your own database**. This data never leaves your server.
+
+| Field               | What It Stores                               |
+| ------------------- | -------------------------------------------- |
+| `durationMs`        | Query execution time                         |
+| `cacheHit`          | Whether Redis/LRU cache served the result    |
+| `retrievalPath`     | Which retrieval strategy was used            |
+| `finalScore`        | Top cosine similarity score                  |
+| `tokens`            | Embedding tokens consumed                    |
+| `costUSD`           | Estimated API cost                           |
+| `savedByCache`      | Cost saved by cache hit                      |
+| `queryLengthBucket` | short / medium / long (never the query text) |
+| `sdkVersion`        | ManasDB version in use                       |
+| `nodeVersion`       | Node.js runtime version                      |
+
+**Never stored:** query text, document content, vectors, or any PII.
+
+This powers `npx manas stats`, `npx manas ui`, and the trace debugger. Telemetry is **on by default**. To opt out:
+
+```javascript
+new ManasDB({ uri: process.env.MONGODB_URI, telemetry: false });
+```
+
+> **A note on the future:** ManasDB Cloud will offer an opt-in feature to contribute anonymized performance gradients (never content, never vectors — only behavioral math like score distributions and retrieval paths) to improve retrieval intelligence across all agents. This will always be explicitly opt-in, clearly documented, and auditable before enabling.
+
+---
+
+## 🗃️ Storage Schemas
+
+ManasDB automatically migrates and configures schemas. Both **MongoDB** and **PostgreSQL** use **identical naming conventions**, making it easy to reason about data across providers:
+
+### MongoDB Collections & PostgreSQL Tables
+
+| Name               | Purpose                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------- |
+| `_manas_documents` | Parent document registry (metadata + content hash)                                  |
+| `_manas_chunks`    | Token-aware text chunks with section titles and tags                                |
+| `_manas_vectors`   | Embeddings — stores both `vector` (compressed ANN) and `vector_full` (exact rerank) |
+| `_manas_telemetry` | Operation event log (cost, latency, deduplication events)                           |
+
+> Both MongoDB and PostgreSQL use the same four table/collection names for full schema parity.
+
+---
+
+## 💡 Supported Embedding Providers
+
+| Provider            | `source` value | Model Examples                    | Cost               |
+| ------------------- | -------------- | --------------------------------- | ------------------ |
+| Local Transformers  | `transformers` | `all-MiniLM-L6-v2`                | Free               |
+| Ollama              | `ollama`       | `nomic-embed-text`                | Free (self-hosted) |
+| OpenAI              | `openai`       | `text-embedding-3-small`          | ~$0.02/1M tokens   |
+| Google Gemini       | `gemini`       | `gemini-embedding-001`            | ~$0.10/1M tokens   |
+| Custom / Air-gapped | `custom`       | Any driver implementing `embed()` | Varies             |
+
+---
+
+## ⚙️ Configuration Reference
+
+```javascript
+new ManasDB({
+  // ── Single Database (Auto-Discovery) ────────────────────────────────
+  // Supply a connection string. ManasDB reads the prefix to mount the
+  // correct provider automatically. No dbType needed.
+  uri: process.env.DATABASE_URI, // 'mongodb://' or 'postgres://' detected automatically
+  dbName: "my_database", // Optional: required for MongoDB only
+
+  // ── OR – Explicit single DB with dbType override ─────────────────────
+  // uri: process.env.DATABASE_URI,
+  // dbType: 'postgres',   // Force: 'mongodb' | 'postgres' | 'pg'
+
+  // ── OR – Polyglot Mode (Multiple Databases) ──────────────────────────
+  // databases: [
+  //   { type: "mongodb", uri: process.env.MONGODB_URI, dbName: "my_database" },
+  //   { type: "postgres", uri: process.env.POSTGRES_URI },
+  // ],
+
+  projectName: "my_project", // Namespace — isolates data per project.
+  modelConfig: {
+    source: "gemini", // 'transformers' | 'ollama' | 'openai' | 'gemini' | 'custom'
+    model: "gemini-embedding-001", // Optional. Provider-specific model name.
+    driver: MyCustomDriver, // Required only when source: 'custom'
+  },
+  piiShield: {
+    enabled: true,
+    customRules: [/MY_REGEX/g], // Additional PII patterns to redact
+  },
+  cache: {
+    provider: "redis",
+    uri: process.env.REDIS_URI || "redis://localhost:6379",
+    semanticThreshold: 0.92, // Fuzzy matching threshold for cache hits
+    ttl: 3600, // Expiration time in seconds
+  },
+  reasoning: {
+    enabled: true, // Enables TreeIndex layout for reasoningRecall()
+  },
+  telemetry: true, // Logs events to _manas_telemetry (all configured databases)
+  debug: false, // Prints model/profile keys on each operation
+});
+```
+
+### 🚨 Strict Mode (Zero-Config Protection)
+
+To prevent silent failures if you accidentally omit a database URI (or forget to load a `.env` file), ManasDB implements a **Strict Mode**.
+
+- Initializing `new ManasDB({})` and calling `await memory.init()` without databases will **succeed and issue a warning** (so it never crashes your server on boot).
+- However, if your application tries to execute `await memory.absorb()` or `await memory.recall()` when zero databases are loaded, ManasDB will **Fail Fast** and throw a descriptive error: `MANASDB_ERROR: Cannot absorb(). No valid database providers were configured`.
+
+---
+
+## 🏢 Enterprise Readiness
+
+ManasDB is designed to scale with MongoDB Atlas vector workloads. Here is how it handles production demands:
+
+- **10M+ Vectors:** Vector indexing scalability is handled by MongoDB Atlas `$vectorSearch` (HNSW). Atlas clusters commonly support tens of millions of vectors
+  depending on cluster tier.
+- **Index Stability:** Prevents duplicate index creation natively. Recognizes when developers switch embedding models and provides a safety-gated `npx manas index-prune` command to gracefully wipe stale dimension indexes.
+- **No Data Leaks:** Telemetry writes strictly to the `_manas_telemetry` collection on _your own_ cluster. **Zero text or PII is ever logged**—only operational metrics like `durationMs` and numeric `costs`.
+- **Concurrency Safety:** Read paths (`recall`) are completely stateless. Write paths (`absorb`) are protected by atomic `$setOnInsert` upserts, preventing vector duplication when requests race.
+- **Bounded Memory:** Hard caps ensure stable heap. The `limit: 5000` is truncated by `fetchLimit: 200` to prevent memory flooding during reranking. Context-healing caps out at 100 chunks per document lookup, and sentence ingestion occurs in garbage-collected batches.
 
 ---
 
@@ -853,66 +816,150 @@ Your private chunking algorithms, scoring formulas, and pipeline logic become **
 
 ---
 
-## 🗃️ Storage Schemas
+<details>
+<summary>📁 Project Structure</summary>
 
-ManasDB automatically migrates and configures schemas. Both **MongoDB** and **PostgreSQL** use **identical naming conventions**, making it easy to reason about data across providers:
+```
+manasdb/
+├── bin/
+│   └── manas.js            # CLI tool (stats, health, trace, benchmark)
+├── src/
+│   ├── index.js            # Main SDK class (ManasDB) — URI auto-discovery + polyglot orchestration
+│   ├── benchmark.js        # Benchmark suite runner
+│   ├── health.js           # Health check script
+│   ├── providers/          # Storage providers (Polyglot Persistence)
+│   │   ├── base.js             # BaseProvider interface
+│   │   ├── mongodb.js          # MongoProvider (MongoDB Atlas)
+│   │   └── postgres.js         # PostgresProvider (pgvector)
+│   ├── core/
+│   │   ├── connection.js       # MongoDB singleton connection manager
+│   │   ├── memory-engine.js    # Low-level memory operations
+│   │   ├── model-factory.js    # Provider factory + custom driver support
+│   │   └── providers/
+│   │       ├── base.provider.js
+│   │       ├── cloud.provider.js    # OpenAI + Gemini
+│   │       ├── ollama.provider.js
+│   │       └── transformers.provider.js  # Local @xenova/transformers
+│   └── providers/             # Storage drivers (DB-agnostic)
+│       ├── base.js            #   BaseProvider interface all drivers extend
+│       ├── factory.js         #   ProviderFactory — lazy dynamic import registry (Plan 10)
+│       ├── mongodb.js         #   MongoDB Atlas vector search driver
+│       └── postgres.js        #   PostgreSQL + pgvector driver
+│   └── utils/
+│       ├── CostCalculator.js   # Token estimation & financial cost calc
+│       ├── ModelRegistry.js    # Dimension lookup per model
+│       ├── PIIFilter.js        # PII redaction engine
+│       ├── SearchFormatter.js  # Result formatting utilities
+│       ├── Telemetry.js        # Polyglot Fire-and-forget event logging
+│       └── TokenCounter.js     # Token counting helpers
+├── tests/
+│   ├── test-e2e.js            # MongoDB E2E QA test suite
+│   ├── test-e2e-pg.js         # PostgreSQL E2E QA test suite
+│   ├── test-features.js       # MongoDB feature tests (PII, dedup, cache)
+│   ├── test-features-pg.js    # PostgreSQL feature tests
+│   ├── test-large-random.js   # MongoDB large document tests
+│   ├── test-large-random-pg.js # PostgreSQL large document tests
+│   ├── test-polyglot-e2e.js   # Polyglot (Mongo+Postgres) E2E tests
+│   └── test-polyglot-features.js # Polyglot feature tests
+├── examples/                  # Runnable copy-paste examples
+│   ├── mongodb-basic/         # MongoDB-only starter project
+│   │   ├── index.js           #   Working example code
+│   │   ├── test.js            #   Self-contained test suite (16 assertions)
+│   │   └── README.md
+│   ├── postgres-basic/        # PostgreSQL-only starter project
+│   │   ├── index.js
+│   │   ├── test.js
+│   │   └── README.md
+│   └── polyglot-mode/         # Both providers simultaneously
+│       ├── index.js
+│       ├── test.js            #   Polyglot-specific assertions (health, merge, dedup)
+│       └── README.md
+├── docs/                      # Architecture decision documents (PLAN_01 through PLAN_10)
+├── dist/                      # Compiled bytecode output (npm run build)
+├── build.js                   # Security compiler (esbuild + bytenode)
+├── verify-lazy-loading.js     # Proves lazy-loading works (11 assertions)
+└── package.json
+```
 
-### MongoDB Collections & PostgreSQL Tables
+> See [`/examples`](./examples) for self-contained, runnable projects — copy one into your own repo to get started immediately.
 
-| Name               | Purpose                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `_manas_documents` | Parent document registry (metadata + content hash)                                  |
-| `_manas_chunks`    | Token-aware text chunks with section titles and tags                                |
-| `_manas_vectors`   | Embeddings — stores both `vector` (compressed ANN) and `vector_full` (exact rerank) |
-| `_manas_telemetry` | Operation event log (cost, latency, deduplication events)                           |
-
-> Both MongoDB and PostgreSQL use the same four table/collection names for full schema parity.
-
----
-
-## 💡 Supported Embedding Providers
-
-| Provider            | `source` value | Model Examples                    | Cost               |
-| ------------------- | -------------- | --------------------------------- | ------------------ |
-| Local Transformers  | `transformers` | `all-MiniLM-L6-v2`                | Free               |
-| Ollama              | `ollama`       | `nomic-embed-text`                | Free (self-hosted) |
-| OpenAI              | `openai`       | `text-embedding-3-small`          | ~$0.02/1M tokens   |
-| Google Gemini       | `gemini`       | `gemini-embedding-001`            | ~$0.10/1M tokens   |
-| Custom / Air-gapped | `custom`       | Any driver implementing `embed()` | Varies             |
-
----
-
-## 📄 License
-
-**Core SDK (`@manasdb/core`)**: [MIT License](./LICENSE)
-
-**ManasDB Cloud + Dashboard**: Commercial License
-
-**Enterprise features**: Commercial License
-
-For commercial licensing and enterprise support, open a [GitHub Discussion](https://github.com/manasdb/manasdb/discussions).
-
----
-
-## 📋 Changelog
-
-**v0.4.0** — Redis Tier 1 caching, Hierarchical Tree Reasoning, benchmark suite, MCP server ([@manasdb/mcp-server](https://www.npmjs.com/package/@manasdb/mcp-server))  
-**v0.3.x** — Polyglot broadcasting, PII Shield, Sentinel Micro-Index  
-**v0.1-0.2** — Core hybrid retrieval, initial release
+</details>
 
 ---
 
 ## 🗺️ Roadmap
 
-### Coming in v0.5 (March 2026)
+### v0.5 (Coming soon)
 
 - [ ] Native TypeScript typings package (`@manasdb/types`)
 - [ ] Elasticsearch adapter
 
-### Coming in v0.6 (April 2026)
+### v0.6 (Coming soon)
 
 - [ ] `npx manas ui` — web dashboard for trace visualization
 - [ ] MySQL + DynamoDB adapters
+
+---
+
+## 📋 Changelog
+
+**v0.4.0** — Telemetry on by default, expanded metrics (retrievalPath, finalScore, savedByCache, sdkVersion, nodeVersion), clearTelemetry() added as explicit method, 2-year TTL index on \_manas_telemetry, Redis Tier 1 caching, Hierarchical Tree Reasoning, benchmark suite, MCP server ([@manasdb/mcp-server](https://www.npmjs.com/package/@manasdb/mcp-server))  
+**v0.3.x** — Polyglot broadcasting, PII Shield, Sentinel Micro-Index  
+**v0.1-0.2** — Core hybrid retrieval, initial release
+
+---
+
+## 🤝 Contributing
+
+If ManasDB saves you time, consider supporting development:
+
+[![Support ManasDB](https://img.shields.io/badge/Support-ManasDB-%230066CC?style=for-the-badge&logo=razorpay&logoColor=white)](https://razorpay.me/@manasdb)
+
+Contributions are also welcome via PRs! Please open an issue before submitting a pull request.
+
+```bash
+# Clone and install
+git clone https://github.com/manasdb/manasdb.git
+cd manasdb
+npm install
+
+# Run the test suite
+npm run test:all
+
+# Run health check
+npm run health
+```
+
+---
+
+## 📄 License
+
+**Core SDK (`@manasdb/core`)**: Apache 2.0 + Commons Clause
+
+Free for all use — personal, commercial, production —
+**unless** your product is ManasDB itself (hosting,
+reselling, or repackaging ManasDB as your primary offering).
+
+| Use Case                                           | Free                |
+| -------------------------------------------------- | ------------------- |
+| Building an app that uses ManasDB as a dependency  | ✅ Yes              |
+| Using ManasDB in your company's production systems | ✅ Yes              |
+| Open source projects                               | ✅ Yes              |
+| Research and education                             | ✅ Yes              |
+| Offering hosted ManasDB as a service to others     | ❌ License required |
+| Reselling or repackaging ManasDB as your product   | ❌ License required |
+
+> **The simple test:** Are you selling ManasDB, or something you built
+> using ManasDB? If you built something WITH it → free. Always.
+> If you are selling ManasDB itself → contact us.
+
+→ See [COMMERCIAL_LICENSE.md](./COMMERCIAL_LICENSE.md) for full details.
+
+For commercial licensing, open a
+[GitHub Discussion](https://github.com/manasdb/manasdb/discussions).
+
+**ManasDB Cloud + Dashboard**: Commercial License
+**Enterprise features**: Commercial License
 
 ---
 

@@ -79,7 +79,7 @@ async function runRedisTests() {
             semanticThreshold: 0.92,
             ttl: 30
         },
-        telemetry: false
+        telemetry: true
     });
 
     await memory.init();

@@ -7,18 +7,21 @@
 
 ### Major Features
 
+- **License Transition (Apache 2.0 + Commons Clause)**: Transitioned from BSL 1.1 to a builder-friendly license that preserves open access while protecting against hosted-service competition and SDK rebranding.
+- **Enhanced ROI Telemetry**: Telemetry is now enabled by default, tracking performance metrics (saved tokens, latency, cost) natively within your own database. No private data ever leaves your server.
 - **Tier 1 Redis Semantic Cache**: Introduced a production-grade external persistent cache using `ioredis` to complement the existing in-process LRU cache.
 - **Hierarchical Tree Reasoning (`TreeIndex`)**: Implemented `reasoningRecall()` method that parses document chunks into a node hierarchy (`document` → `section` → `leaf`) to accurately slice very large contexts.
-- **Two-Tier Caching Strategy**: Semantic queries check Redis before falling back to Memory. Both caches respect exact-match SHA256 hashes and fuzzy-match cosine_similarity >= 0.95.
+- **Universal Polyglot Schema (`SearchFormatter`)**: Normalized all database responses (MongoDB and Postgres) into one identical output schema contract for seamless integration.
 
-### Enhancements
+### Enhancements & UI Polish
 
-- **Cache-Bypass for Ultra-Short Queries**: Added logic to instantly route queries of 2 words or less directly to databases to prevent TCP cache-fetch overhead.
-- **Reasoning Cache Short-circuit**: `reasoningRecall()` result payloads are now instantly cached in Tier 1 and Tier 2, offering up to 100x performance improvements for recurring tree searches.
-- **Lazy-Loaded Cache Provider**: Redis (`ioredis`) is implemented via the `ProviderFactory` lazy-loading architecture. It will only be imported and instantiated if `cache: { provider: 'redis' }` is explicitly configured, ensuring zero bloat or crash-risk for users relying purely on MongoDB or Postgres.
-- **Financial Cost Telemetry (`CostCalculator`)**: Integrated token estimation and USD cost calculations natively into `absorb()` and the `_trace` responses of all indexing operations.
-- **Universal Polyglot Schema (`SearchFormatter`)**: Centralized and sanitized all raw database returns (MongoDB and Postgres) into one identical output schema contract before hitting the caller loop.
-- New benchmarking scripts for measuring Redis caching overhead vs DB vector search (`examples/mongodb-redis/benchmark-reasoning.js`, `examples/postgres-redis/benchmark-reasoning.js`).
+- **README Narrative Rewrite**: Complete overhaul of the README focusing on the "Why", including a 10-second demo at the top and a story-based introduction.
+- **Telemetry Lifecycle**: Added `memory.clearTelemetry()` for explicit data management and a 2-year TTL index for automated metadata cleanup.
+- **PII Filtering for Metrics**: Expanded telemetry events (`retrievalPath`, `finalScore`, `sdkVersion`) while ensuring zero PII is recorded in the trace logs.
+- **Financial Cost Telemetry (`CostCalculator`)**: Integrated token estimation and USD cost calculations natively into the indexing and recall pipelines.
+- **Project Structure & UX**: Collapsed the detailed project tree under a `<details>` tag and optimized the section order for better onboarding.
+- **Cache-Bypass for Short Queries**: Logic to instantly route queries of 2 words or less directly to databases, bypassing the cache TCP overhead.
+- **Lazy-Loaded Provider Factory**: Redis (`ioredis`) is now lazy-loaded, ensuring zero performance impact for users not using the caching layer.
 
 ---
 

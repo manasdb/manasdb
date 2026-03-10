@@ -27,7 +27,7 @@ async function runFeaturesTest() {
             dbName: 'manasdb_test',
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false,
+            telemetry: true,
             piiShield: true // Enable PII Redaction
         });
 

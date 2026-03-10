@@ -40,7 +40,7 @@ async function runRandomTextTest() {
             dbName: 'manasdb_test',
             projectName: projectName,
             modelConfig: { source: 'ollama', model: 'nomic-embed-text' },
-            telemetry: false
+            telemetry: true
         });
 
         await db.init();

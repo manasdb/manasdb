@@ -9,7 +9,7 @@
   },
   "type": "module",
   "author": "ManasDB Contributors",
-  "license": "MIT",
+  "license": "Apache-2.0 WITH Commons-Clause",
   "homepage": "https://github.com/manasdb/manasdb#readme",
   "bugs": {
     "url": "https://github.com/manasdb/manasdb/issues"

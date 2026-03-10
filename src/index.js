@@ -52,6 +52,9 @@ class ManasDB {
     this.debug       = debug === true;
 
     Telemetry.enabled = telemetry === true;
+    if (telemetry === false) {
+      console.warn('[ManasDB] Telemetry disabled. npx manas stats and npx manas ui will show no data. To re-enable: set telemetry: true in config.');
+    }
 
     // ── Setup PII Shield (Independent of Databases) ──
     this.piiShield = { enabled: false, customRules: [] };
@@ -176,17 +179,19 @@ class ManasDB {
 
     const insertionResults = await Promise.all(promises);
 
-    const dur = Telemetry.endTimer(timer);
-    Telemetry.logEvent('ABSORB_POLYGLOT_COMPLETED', {
-      projectName: this.projectName || 'default', durationMs: dur, driversHit: this.databaseDrivers.length
-    }, this.databaseDrivers);
-
     const primary = insertionResults[0] || {};
     
     // ── 4. Cost Calculation ──
     const modelUsed = this.modelConfig.model || this.modelConfig.source;
     const tokens = CostCalculator.estimateTokens(text);
     const estimatedCost = CostCalculator.calculate(tokens, modelUsed);
+
+    const dur = Telemetry.endTimer(timer);
+    Telemetry.logEvent('ABSORB_POLYGLOT_COMPLETED', {
+      projectName: this.projectName || 'default', durationMs: dur, driversHit: this.databaseDrivers.length,
+      tokens, actual_cost: estimatedCost,
+      embeddingProfile: 'balanced', chunkSizeUsed: options.maxTokens ?? 100
+    }, this.databaseDrivers);
 
     return {
       message: 'Insertion completed.',
@@ -232,6 +237,18 @@ class ManasDB {
     // Short Query Bypass: Ultra-short queries have high collision rates and low DB execution cost.
     // Bypassing the cache avoids the 2-4ms TCP hop overhead to Redis.
     const isShortQuery = query.split(/\s+/).length <= 2;
+    const queryBucket = isShortQuery ? 'short' : (query.split(/\s+/).length > 10 ? 'long' : 'medium');
+
+    // Helper for cache telemetry
+    const logCacheTelemetry = (path, hit) => {
+      Telemetry.logEvent('RECALL_POLYGLOT_COMPLETED', {
+        projectName: this.projectName || 'default', durationMs: Telemetry.endTimer(timer),
+        tokens, actual_cost: 0, savedByCache: costUSD,
+        retrievalPath: path, finalScore: hit[0]?.score || hit.score || 0,
+        retrievalMode: options.mode || 'qa', queryLengthBucket: queryBucket,
+        chunkSizeUsed: options.limit || 5
+      });
+    };
 
     // ── 1.a Tier 1: Redis Semantic Cache ──────────────────────────────────────
     // Check Redis BEFORE in-memory LRU — Redis is shared across server instances.
@@ -239,6 +256,7 @@ class ManasDB {
       const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
       if (redisHit) {
         redisHit._trace = { cacheHit: 'redis', tokens, costUSD };
+        logCacheTelemetry('redis_tier1', redisHit);
         return redisHit;
       }
     }
@@ -249,6 +267,7 @@ class ManasDB {
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
       const cached = [...this.semanticCacheIndex.get(queryHash)]; // Clone array
       cached._trace = { cacheHit: 'memory', tokens, costUSD };
+      logCacheTelemetry('lru_tier2', cached);
       return cached;
     }
 
@@ -259,6 +278,7 @@ class ManasDB {
         if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
           const cached = [...entry.results]; // Clone array
           cached._trace = { cacheHit: 'memory', tokens, costUSD };
+          logCacheTelemetry('lru_tier2_fuzzy', cached);
           return cached;
         }
       }
@@ -307,7 +327,15 @@ class ManasDB {
 
     const dur = Telemetry.endTimer(timer);
     Telemetry.logEvent('RECALL_POLYGLOT_COMPLETED', {
-      projectName: this.projectName || 'default', durationMs: dur
+      projectName: this.projectName || 'default', 
+      durationMs: dur,
+      tokens,
+      actual_cost: costUSD,
+      retrievalPath: isShortQuery ? 'db_bypass' : 'db_pipeline',
+      finalScore: finalResults[0]?.score || 0,
+      retrievalMode: options.mode || 'qa',
+      queryLengthBucket: queryBucket,
+      chunkSizeUsed: limit
     }, this.databaseDrivers);
 
     // Cost Calculation
@@ -379,11 +407,25 @@ class ManasDB {
 
     const isShortQuery = query.split(/\s+/).length <= 2;
 
+    const timer = Telemetry.startTimer();
+    const queryBucket = isShortQuery ? 'short' : (query.split(/\s+/).length > 10 ? 'long' : 'medium');
+
+    const logCacheTelemetry = (path, hit) => {
+      Telemetry.logEvent('REASONING_RECALL_COMPLETED', {
+        projectName: this.projectName || 'default', durationMs: Telemetry.endTimer(timer),
+        tokens, actual_cost: 0, savedByCache: costUSD,
+        retrievalPath: path, finalScore: hit?.score || 0,
+        retrievalMode: 'reasoning', queryLengthBucket: queryBucket,
+        chunkSizeUsed: topSections
+      });
+    };
+
     // ── Tier 1: Redis Semantic Cache ──
     if (!isShortQuery && this._cacheProvider) {
       const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
       if (redisHit) {
         redisHit._trace = { cacheHit: 'redis', reasoning: true, tokens, costUSD };
+        logCacheTelemetry('redis_tier1', redisHit);
         return redisHit;
       }
     }
@@ -394,6 +436,7 @@ class ManasDB {
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
       const cached = { ...this.semanticCacheIndex.get(queryHash) };
       cached._trace = { cacheHit: 'memory', reasoning: true, tokens, costUSD };
+      logCacheTelemetry('lru_tier2', cached);
       return cached;
     }
 
@@ -404,6 +447,7 @@ class ManasDB {
         if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
           const cached = { ...entry.results };
           cached._trace = { cacheHit: 'memory', reasoning: true, tokens, costUSD };
+          logCacheTelemetry('lru_tier2_fuzzy', cached);
           return cached;
         }
       }
@@ -433,6 +477,15 @@ class ManasDB {
     }
 
     // ── Step 7: Cost Calculation ──
+    const dur = Telemetry.endTimer(timer);
+    Telemetry.logEvent('REASONING_RECALL_COMPLETED', {
+      projectName: this.projectName || 'default', durationMs: dur,
+      tokens, actual_cost: costUSD,
+      retrievalPath: 'tree_reasoning_db', finalScore: bestSection.score,
+      retrievalMode: 'reasoning', queryLengthBucket: queryBucket,
+      chunkSizeUsed: topSections
+    });
+
     const finalResult = {
       section:  bestSection.title,
       score:    bestSection.score,
@@ -480,6 +533,32 @@ class ManasDB {
 
   async delete(documentId) {
     await Promise.all(this.databaseDrivers.map(driver => driver.delete(documentId)));
+  }
+
+  async clearAll() {
+    if (this.debug) console.warn('[ManasDB] clearAll() triggered. Wiping all vectors, chunks, and documents.');
+    console.warn('[ManasDB] _manas_telemetry was NOT cleared. This collection stores your ROI metrics and cost history. To clear it explicitly: await memory.clearTelemetry()');
+    await Promise.all(this.databaseDrivers.map(async driver => {
+      if (typeof driver.clear === 'function') {
+        await driver.clear();
+      }
+    }));
+    if (this._cacheProvider) {
+      await this._cacheProvider.clear();
+    }
+    this.semanticCache = [];
+    this.semanticCacheIndex.clear();
+    this._treeIndex.sections?.clear();
+    this._treeIndex.leaves?.clear();
+  }
+
+  async clearTelemetry() {
+    console.warn('[ManasDB] Clearing telemetry will permanently delete your cost savings history and performance metrics. This cannot be undone.');
+    await Promise.all(this.databaseDrivers.map(async driver => {
+      if (typeof driver.clearTelemetry === 'function') {
+        await driver.clearTelemetry();
+      }
+    }));
   }
 
   async health() {

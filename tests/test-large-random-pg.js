@@ -40,7 +40,7 @@ async function runRandomTextTest() {
             
             projectName: projectName,
             modelConfig: { source: 'transformers' },
-            telemetry: false
+            telemetry: true
         });
 
         await db.init();

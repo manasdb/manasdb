@@ -47,6 +47,12 @@ class MongoProvider extends BaseProvider {
     } catch (_) {}
     try { await chunksCollection.createIndex({ document_id: 1, chunk_index: 1 }); } catch (_) {}
     try { await vectorsCollection.createIndex({ embedding_hash: 1 }); } catch (_) {}
+    try {
+      await db.collection('_manas_telemetry').createIndex(
+        { timestamp: 1 },
+        { expireAfterSeconds: 63072000, background: true }
+      );
+    } catch (_) {}
 
     try {
       const existingIndexes = await vectorsCollection.listSearchIndexes().toArray();
@@ -335,6 +341,18 @@ class MongoProvider extends BaseProvider {
     await db.collection('_manas_vectors').deleteMany({ document_id: id });
     await db.collection('_manas_chunks').deleteMany({ document_id: id });
     await db.collection('_manas_documents').deleteOne({ _id: id });
+  }
+
+  async clear() {
+    const db = MongoConnection.getDb();
+    await db.collection('_manas_vectors').deleteMany({});
+    await db.collection('_manas_chunks').deleteMany({});
+    await db.collection('_manas_documents').deleteMany({});
+  }
+
+  async clearTelemetry() {
+    const db = MongoConnection.getDb();
+    await db.collection('_manas_telemetry').deleteMany({});
   }
 
   async health() {

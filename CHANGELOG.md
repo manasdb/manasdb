@@ -9,15 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **License Transition**: Shifted from BSL 1.1 to **Apache 2.0 + Commons Clause**. Added `COMMERCIAL_LICENSE.md` with explicit rebranding and hosting restrictions while preserving a "Free for Builders" model.
+- **Consulting Clarity**: Explicitly permitted consulting, integration, and support services within the `LICENSE` file to avoid community friction.
+- **Default-On Telemetry**: Metrics are now enabled by default to help developers track ROI (saved tokens, latency, cost) without storing any PII.
+- **Enhanced Telemetry Metrics**: Added `retrievalPath`, `finalScore`, `savedByCache`, `sdkVersion`, and `nodeVersion` to event payloads.
+- **Telemetry Lifecycle Management**: Added `memory.clearTelemetry()` to explicitly wipe metrics and a **2-year TTL index** on the `_manas_telemetry` collection for automated cleanup.
 - **Tier 1 Redis Semantic Cache**: Introduced a production-grade external persistent cache using `ioredis` to complement the existing in-process LRU cache.
-- **Two-Tier Caching Strategy**: Semantic queries check Redis (`cacheHit: 'redis'`) before falling back to Memory (`cacheHit: 'memory'`). Both caches respect exact-match SHA256 hashes and fuzzy-match `cosine_similarity >= 0.95`.
 - **Hierarchical Tree Reasoning (`TreeIndex`)**: Implemented `reasoningRecall()` method that parses document chunks into a node hierarchy (`document` → `section` → `leaf`) to accurately slice very large contexts.
+- **Financial Cost Telemetry (`CostCalculator`)**: Integrated token estimation and USD cost calculations natively into `absorb()` and the `_trace` responses.
+- **Universal Polyglot Schema (`SearchFormatter`)**: Normalized all database outputs (Mongo Atlas / pgvector) into a single identical schema contract.
+
+### Changed
+
+- **README Overhaul**: Complete narrative rewrite including a new tagline, story-based intro, and 10-second demo moved to the top for immediate value proof.
+- **UI Polish**: Collapsed the Project Structure under a `<details>` tag and repositioned the "Why Use Multiple Databases?" section for better visibility.
+- **Roadmap Emoji**: Fixed the broken roadmap header emoji (now 🗺️).
 - **Cache-Bypass for Ultra-Short Queries**: Added logic to instantly route queries of 2 words or less directly to databases to prevent TCP cache-fetch overhead.
-- **Reasoning Cache Short-circuit**: `reasoningRecall()` result payloads are now instantly cached in Tier 1 and Tier 2, offering up to 100x performance improvements for recurring tree searches.
-- **Lazy-Loaded Cache Provider**: Redis (`ioredis`) is implemented via the `ProviderFactory` lazy-loading architecture. It will only be imported and instantiated if `cache: { provider: 'redis' }` is explicitly configured, ensuring zero bloat or crash-risk for users relying purely on MongoDB or Postgres.
-- **Financial Cost Telemetry (`CostCalculator`)**: Integrated `CostCalculator.js` into the `absorb()` and `recall()` pipelines. It estimates exact token usage and computes real-world USD costs based on underlying AI Provider pricing tables, surfacing them instantly inside the `_trace` and `costAnalysis` payload outputs.
-- **Universal Polyglot Schema (`SearchFormatter`)**: Repurposed `SearchFormatter.js` from a native-MongoDB utility to a global payload sanitizer. All polyglot database vectors (whether from Mongo Atlas or pgvector) are seamlessly normalized into a strictly typed schema upon retrieval, guaranteeing consumers never deal with raw divergent database constructs.
-- New benchmarking scripts for measuring Redis caching overhead vs DB vector search (`examples/mongodb-redis/benchmark-reasoning.js`, `examples/postgres-redis/benchmark-reasoning.js`).
+- **Lazy-Loaded Cache Provider**: Redis (`ioredis`) is now implemented via the `ProviderFactory` lazy-loading architecture.
 
 ## [0.3.2] - 2026-03-09
 

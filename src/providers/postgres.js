@@ -78,8 +78,25 @@ class PostgresProvider extends BaseProvider {
         financial JSONB,
         metadata JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        -- Note: Old records should be purged via a scheduled job after 2 years
       );
     `);
+
+    // Add telemetry fields dynamically for backwards compatibility
+    try {
+      await this.pool.query(`
+        ALTER TABLE _manas_telemetry 
+        ADD COLUMN IF NOT EXISTS retrieval_path VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS final_score NUMERIC,
+        ADD COLUMN IF NOT EXISTS retrieval_mode VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS query_length_bucket VARCHAR(20),
+        ADD COLUMN IF NOT EXISTS chunk_size_used INTEGER,
+        ADD COLUMN IF NOT EXISTS embedding_profile VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS saved_by_cache NUMERIC,
+        ADD COLUMN IF NOT EXISTS sdk_version VARCHAR(50),
+        ADD COLUMN IF NOT EXISTS node_version VARCHAR(50);
+      `);
+    } catch(e) {}
 
     // Ensure UNIQUE constraint is dropped if it existed from previous runs (legacy cleanup)
     try { await this.pool.query(`ALTER TABLE _manas_vectors DROP CONSTRAINT IF EXISTS _manas_vectors_embedding_hash_key CASCADE;`); } catch(e) {}
@@ -88,6 +105,7 @@ class PostgresProvider extends BaseProvider {
     // Indexes for Deduplication (ROI) and Sparse Retrieval Filtering
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_docs_hash_project ON _manas_documents(content_hash, project);`);
     await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_vectors_embed_hash ON _manas_vectors(embedding_hash);`);
+    await this.pool.query(`CREATE INDEX IF NOT EXISTS idx_telemetry_created_at ON _manas_telemetry(created_at);`);
     
     // HNSW Vector Index for Cosine Distance (<=>)
     try {
@@ -270,6 +288,14 @@ class PostgresProvider extends BaseProvider {
     await this.pool.query('DELETE FROM _manas_documents WHERE id = $1 AND project = $2', [documentId, this.projectName]);
   }
 
+  async clear() {
+    await this.pool.query('TRUNCATE _manas_vectors, _manas_chunks, _manas_documents CASCADE;');
+  }
+
+  async clearTelemetry() {
+    await this.pool.query('TRUNCATE _manas_telemetry CASCADE;');
+  }
+
   async health() {
     const res = await this.pool.query('SELECT 1');
     return res.rowCount === 1;
@@ -278,14 +304,26 @@ class PostgresProvider extends BaseProvider {
   async logTelemetry(telemetryDoc) {
     try {
       await this.pool.query(
-        `INSERT INTO _manas_telemetry (event_name, project, duration_ms, financial, metadata)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO _manas_telemetry (
+           event_name, project, duration_ms, financial, metadata, 
+           retrieval_path, final_score, retrieval_mode, query_length_bucket, 
+           chunk_size_used, embedding_profile, saved_by_cache, sdk_version, node_version
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         [
           telemetryDoc.eventName,
           telemetryDoc.projectName,
           telemetryDoc.durationMs,
           JSON.stringify(telemetryDoc.financial || {}),
-          JSON.stringify(telemetryDoc.metadata || {})
+          JSON.stringify(telemetryDoc.metadata || {}),
+          telemetryDoc.retrievalPath,
+          telemetryDoc.finalScore,
+          telemetryDoc.retrievalMode,
+          telemetryDoc.queryLengthBucket,
+          telemetryDoc.chunkSizeUsed,
+          telemetryDoc.embeddingProfile,
+          telemetryDoc.savedByCache,
+          telemetryDoc.sdkVersion,
+          telemetryDoc.nodeVersion
         ]
       );
     } catch (e) {}
