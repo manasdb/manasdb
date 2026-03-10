@@ -182,6 +182,12 @@ class ManasDB {
     }, this.databaseDrivers);
 
     const primary = insertionResults[0] || {};
+    
+    // ── 4. Cost Calculation ──
+    const modelUsed = this.modelConfig.model || this.modelConfig.source;
+    const tokens = CostCalculator.estimateTokens(text);
+    const estimatedCost = CostCalculator.calculate(tokens, modelUsed);
+
     return {
       message: 'Insertion completed.',
       chunks: primary.chunksInserted,
@@ -189,7 +195,11 @@ class ManasDB {
       vectorIds: primary.vectorIds,
       isDeduplicated: primary.isDeduplicated,
       inserted: insertionResults,
-      rawChunks: chunks 
+      rawChunks: chunks,
+      costAnalysis: {
+        tokens,
+        estimatedCostUSD: estimatedCost
+      }
     };
   }
 
@@ -211,6 +221,12 @@ class ManasDB {
     // ── 1. Embed query once ────
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+
+    // Estimate tokens/cost for the Embedding Query execution
+    const modelUsed = this.modelConfig.model || this.modelConfig.source;
+    const tokens = CostCalculator.estimateTokens(query);
+    const costUSD = CostCalculator.calculate(tokens, modelUsed);
+
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
 
     // Short Query Bypass: Ultra-short queries have high collision rates and low DB execution cost.
@@ -222,7 +238,7 @@ class ManasDB {
     if (!isShortQuery && this._cacheProvider) {
       const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
       if (redisHit) {
-        redisHit._trace = { cacheHit: 'redis' };
+        redisHit._trace = { cacheHit: 'redis', tokens, costUSD };
         return redisHit;
       }
     }
@@ -231,8 +247,8 @@ class ManasDB {
 
     // ── 1.b Tier 2: In-Memory LRU Cache ──────────────────────────────────────
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
-      const cached = this.semanticCacheIndex.get(queryHash);
-      cached._trace = { cacheHit: 'memory' };
+      const cached = [...this.semanticCacheIndex.get(queryHash)]; // Clone array
+      cached._trace = { cacheHit: 'memory', tokens, costUSD };
       return cached;
     }
 
@@ -241,7 +257,9 @@ class ManasDB {
       for (let i = this.semanticCache.length - 1; i >= this.semanticCache.length - FUZZY_WINDOW; i--) {
         const entry = this.semanticCache[i];
         if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
-          return entry.results;
+          const cached = [...entry.results]; // Clone array
+          cached._trace = { cacheHit: 'memory', tokens, costUSD };
+          return cached;
         }
       }
     }
@@ -284,25 +302,16 @@ class ManasDB {
     finalRanked.sort((a, b) => b.score - a.score);
     finalRanked = finalRanked.slice(0, limit);
 
-    const finalResults = finalRanked.map(res => ({
-      database: res.database,
-      contentId: res.document_id,
-      text: res.contentDetails[0]?.text || '',
-      tags: res.contentDetails[0]?.tags || [],
-      score: res.score,
-      metadata: {
-        matchedChunk: res.contentDetails[0]?.text || '',
-        sectionTitle: res.contentDetails[0]?.sectionTitle || '',
-        healedContext: true
-      }
-    }));
+    // Apply standard SearchFormatter to normalize polyglot outputs
+    const finalResults = SearchFormatter.formatRecallResults(finalRanked);
 
     const dur = Telemetry.endTimer(timer);
     Telemetry.logEvent('RECALL_POLYGLOT_COMPLETED', {
       projectName: this.projectName || 'default', durationMs: dur
     }, this.databaseDrivers);
 
-    finalResults._trace = { cacheHit: false, rrfMerged: false };
+    // Cost Calculation
+    finalResults._trace = { cacheHit: false, rrfMerged: false, tokens, costUSD };
 
     // ── In-Memory LRU cache storage (LFU/LRU bounded, Tier 2) ──
     if (!isShortQuery && finalResults.length > 0) {
@@ -361,6 +370,10 @@ class ManasDB {
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
 
+    const modelUsed = this.modelConfig.model || this.modelConfig.source;
+    const tokens = CostCalculator.estimateTokens(query);
+    const costUSD = CostCalculator.calculate(tokens, modelUsed);
+
     // ── Step 1: Embed query ──
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
 
@@ -370,7 +383,7 @@ class ManasDB {
     if (!isShortQuery && this._cacheProvider) {
       const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
       if (redisHit) {
-        redisHit._trace = { cacheHit: 'redis', reasoning: true };
+        redisHit._trace = { cacheHit: 'redis', reasoning: true, tokens, costUSD };
         return redisHit;
       }
     }
@@ -379,8 +392,8 @@ class ManasDB {
 
     // ── Tier 2: In-Memory Cache ──
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
-      const cached = this.semanticCacheIndex.get(queryHash);
-      cached._trace = { cacheHit: 'memory', reasoning: true };
+      const cached = { ...this.semanticCacheIndex.get(queryHash) };
+      cached._trace = { cacheHit: 'memory', reasoning: true, tokens, costUSD };
       return cached;
     }
 
@@ -390,7 +403,7 @@ class ManasDB {
         const entry = this.semanticCache[i];
         if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
           const cached = { ...entry.results };
-          cached._trace = { cacheHit: 'memory', reasoning: true };
+          cached._trace = { cacheHit: 'memory', reasoning: true, tokens, costUSD };
           return cached;
         }
       }
@@ -419,6 +432,7 @@ class ManasDB {
       }));
     }
 
+    // ── Step 7: Cost Calculation ──
     const finalResult = {
       section:  bestSection.title,
       score:    bestSection.score,
@@ -427,7 +441,9 @@ class ManasDB {
         reasoning:      true,
         sectionsRanked: rankedSections.length,
         selectedSection: bestSection.sectionId,
-        cacheHit:       false
+        cacheHit:       false,
+        tokens,
+        costUSD
       }
     };
 

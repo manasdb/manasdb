@@ -206,8 +206,7 @@ console.log(results[0].metadata.matchedChunk);
 
 // Access the pipeline trace
 console.log(results._trace);
-// → { cacheHit: false, denseCandidates: 20, sparseCandidates: 8,
-// rrfMerged: 11, mmrSelected: 3, fallbackTriggered: false, finalScore: 0.94 }
+// → { cacheHit: false, rrfMerged: false, tokens: 9, costUSD: 0 }
 ```
 
 ---
@@ -272,27 +271,31 @@ For single-database deployments a single `uri` is enough — multi-DB is opt-in.
 ┌─────────────────────────────────────────────────────┐
 │                   Your Application                  │
 └────────────────────────┬────────────────────────────┘
-                         │  absorb() / recall()
-┌────────────────────────▼────────────────────────────┐
-│                   ManasDB SDK                       │
-│                                                     │
-│  ┌──────────────┐  ┌───────────┐  ┌─────────────┐  │
-│  │  PII Shield  │  │  Chunker  │  │  Cache LRU  │  │
-│  └──────────────┘  └─────┬─────┘  └─────────────┘  │
-│                           │                         │
-│  ┌────────────────────────▼──────────────────────┐  │
-│  │          Embedding Provider                   │  │
-│  │  OpenAI · Gemini · Ollama · Transformers      │  │
-│  └────────────────────────┬──────────────────────┘  │
+                         │  absorb() / recall() / reasoningRecall()
+┌────────────────────────▼─────────────────────────────┐
+│                   ManasDB SDK                        │
+│                                                      │
+│  ┌──────────────┐  ┌───────────┐  ┌──────────────┐   │
+│  │  PII Shield  │  │  Chunker  │  │ Tree Reason  │   │
+│  └──────────────┘  └─────┬─────┘  └──────────────┘   │
+│                           │                          │
+│  ┌────────────────────────▼──────────────────────┐   │
+│  │          Embedding Provider                   │   │
+│  │  OpenAI · Gemini · Ollama · Transformers      │   │
+│  └────────────────────────┬──────────────────────┘   │
+│                           │                          │
+│  ┌────────────────────────▼──────────────────────┐   │
+│  │  Tier 1 Redis Cache <──> Tier 2 In-Memory LRU │   │
+│  └────────────────────────┬──────────────────────┘   │
 │                           │ Polyglot Broadcast       │
-│            ┌──────────────┴───────────────┐         │
-│            ▼                              ▼         │
-│  ┌─────────────────┐           ┌──────────────────┐ │
-│  │  MongoDB Atlas  │           │   PostgreSQL      │ │
-│  │  $vectorSearch  │           │   pgvector        │ │
-│  │  Full-text idx  │           │   tsvector        │ │
-│  └─────────────────┘           └──────────────────┘ │
-└─────────────────────────────────────────────────────┘
+│            ┌──────────────┴───────────────┐          │
+│            ▼                              ▼          │
+│  ┌─────────────────┐           ┌──────────────────┐  │
+│  │  MongoDB Atlas  │           │   PostgreSQL     │  │
+│  │  $vectorSearch  │           │   pgvector       │  │
+│  │  Full-text idx  │           │   tsvector       │  │
+│  └─────────────────┘           └──────────────────┘  │
+└──────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -405,11 +408,14 @@ RECALL PIPELINE
 ───────────────
 Query String
   │
-  ├─ [Cache] SHA256 exact-hit → return immediately
-  ├─ [Cache] Cosine ≥ 0.95 fuzzy-hit → return immediately
+  ├─ [Cache] Tier 1: Dedicated Redis shared Cache
+  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB)
+  │
+  ├─ [Cache] Tier 2: In-Memory Node.js LRU Cache
+  │     └─ If cosine ≥ 0.95 → Return immediately (Bypass DB + Redis)
   │
   ├─ Adaptive Mode Detection
-  │     ├─ < 3 tokens   → Sparse-only (skip ANN entirely)
+  │     ├─ < 3 tokens   → DB Bypass (Short Factual Query)
   │     ├─ Named entity → Dense-heavy (0.8 / 0.2)
   │     ├─ Numeric      → Sparse-heavy (0.2 / 0.8)
   │     └─ Long query   → Dense-heavy (0.8 / 0.2)
@@ -418,10 +424,17 @@ Query String
   │     ├─ [A] Atlas $vectorSearch (ANN)
   │     ├─ [B] Postgres `<=>` Cosine Sorting (pgvector)
   │
-  ├─ [C] Reciprocal Rank Fusion / Rerank → Unified Deduplicated Scores
-  ├─ [D] Exact Cosine Rerank
-  ├─ [E] Context Healing   — Reconstruct full parent document from chunks
-        └─ Returns matchedChunk + sectionTitle + allScores + database identifier
+  ├─ [C] Default recall(): Reciprocal Rank Fusion / Rerank
+  │     └─ Returns merged dense + sparse unified scores
+  │
+  ├─ [D] reasoningRecall(): Hierarchical Tree Search
+  │     └─ Ranks document > Parses best Section > Returns Leaf nodes
+  │
+  ├─ [E] Exact Cosine Rerank
+  ├─ [F] Context Healing — Reconstruct full parent document from chunks
+  │
+  └─ PII Output Shield (Optional) → SearchFormatter (Polyglot Schema)
+        └─ Returns matchedChunk + tokens/cost USD metrics
 ```
 
 ---
@@ -560,7 +573,13 @@ await memory.absorb(text, {
   overlapTokens: 20, // Token overlap between adjacent chunks (default: 20)
   precision: "float32", // 'float32' | 'float16' | 'int8' (vector compression)
 });
-// Returns: { contentId, vectorId, chunks: number }
+// Returns:
+// {
+//   contentId,
+//   vectorId,
+//   chunks: number,
+//   costAnalysis: { tokens: 142, estimatedCostUSD: 0.00284 }
+// }
 ```
 
 ### `recall(query, options?)`
@@ -592,6 +611,34 @@ const results = await memory.recall(query, {
 // }]
 //
 // results._trace — pipeline audit log
+// { cacheHit: false, rrfMerged: 11, tokens: 9, costUSD: 0.00018 }
+```
+
+### `reasoningRecall(query, options?)`
+
+Hierarchical tree-based reasoning recall. Instead of a flat vector search, this maps documents into a `Document → Section → Leaf` hierarchy. It selects the highest-scoring section and returns all its contributing leaf nodes for deep, structured context.
+
+> **Requires:** `new ManasDB({ reasoning: { enabled: true } })` initialized.
+
+```javascript
+const result = await memory.reasoningRecall(
+  "Summarize the Q3 Financial Goals",
+  {
+    topSections: 5, // Rank the top 5 document sections
+    topSection: 0, // Select the absolute best one (index 0)
+  },
+);
+
+// Result shape:
+// {
+//   section: "Q3 Strategy Board Meeting", // The markdown header it grouped by
+//   score: 0.9412,                        // Cosine match of the section summary
+//   leaves: [
+//     { text: "We plan to increase revenue...", chunkIndex: 12 },
+//     { text: "By expanding the sales team...", chunkIndex: 13 }
+//   ],
+//   _trace: { reasoning: true, selectedSection: "hash", cacheHit: 'redis', tokens: 8, costUSD: 0 }
+// }
 ```
 
 ---
@@ -719,7 +766,9 @@ npx manas benchmark
   "rrfMerged": 14,
   "mmrSelected": 3,
   "fallbackTriggered": false,
-  "finalScore": 0.938
+  "finalScore": 0.938,
+  "tokens": 12,
+  "costUSD": 0.00024
 }
 ```
 

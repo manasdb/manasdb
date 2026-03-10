@@ -56,7 +56,10 @@
     "nodejs",
     "typescript",
     "mem0",
-    "ai-memory"
+    "ai-memory",
+    "redis",
+    "semantic-cache",
+    "tree-reasoning"
   ],
   "funding": {
     "type": "individual",
@@ -69,7 +72,11 @@
     "test:random": "node tests/test-large-random.js",
     "test:features": "node tests/test-features.js",
     "test:e2e": "node tests/test-e2e.js",
-    "test:all": "npm run test:random && npm run test:features && npm run test:e2e",
+    "test:random-pg": "node tests/test-large-random-pg.js",
+    "test:features-pg": "node tests/test-features-pg.js",
+    "test:e2e-pg": "node tests/test-e2e-pg.js",
+    "test:redis-cache": "node tests/test-redis-cache.js",
+    "test:all": "npm run test:random && npm run test:random-pg && npm run test:features && npm run test:features-pg && npm run test:e2e && npm run test:e2e-pg && npm run test:redis-cache",
     "health": "node src/health.js",
     "build": "node build.js"
   },

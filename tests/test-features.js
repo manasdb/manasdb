@@ -111,6 +111,16 @@ async function runFeaturesTest() {
         );
 
         // ------------------------------------------------------------------
+        console.log(chalk.yellow("\nTest 4: Cost Calculator & Telemetry Trace"));
+        console.log(chalk.dim("  Query Tokens: " + recall1._trace.tokens));
+        console.log(chalk.dim("  Query Cost:   $" + recall1._trace.costUSD));
+        assert(
+            recall1._trace.tokens !== undefined && recall1._trace.costUSD !== undefined,
+            "Cost Calculator emitted tokens and cost into _trace payload",
+            "Cost Calculator missing from trace payload"
+        );
+
+        // ------------------------------------------------------------------
         console.log(chalk.cyan("\n====================================================="));
         console.log(chalk.bold(`[INFO] Feature Test Score: ${passed}/${total} (${Math.round((passed / total) * 100)}%)`));
         console.log(chalk.cyan("=====================================================\n"));

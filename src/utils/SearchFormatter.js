@@ -9,33 +9,23 @@ export default class SearchFormatter {
   static formatRecallResults(rawResults) {
     if (!Array.isArray(rawResults)) return [];
 
-    return rawResults.map(raw => {
-      // Destructure to separate internal components
-      const { 
-        vector, 
-        embedding_hash,
-        content_id,
-        _id,
-        contentDetails,
-        score,
-        ...rest 
-      } = raw;
-
-      // Ensure content details exist and extract first element from $lookup
-      const content = Array.isArray(contentDetails) && contentDetails.length > 0 
-        ? contentDetails[0] 
-        : {};
-
+    return rawResults.map(res => {
+      // Check if it's already using the new polyglot structure or old mongodb structure
+      const content = (res.contentDetails && res.contentDetails[0]) || {};
+      
       return {
-        id: content._id || _id,
-        text: content.text || null,
-        tags: content.tags || null,
-        project: content.project || rest.project || 'unknown',
-        model: rest.model || 'unknown',
-        dims: rest.dims || null,
-        profile: rest.profile || 'unknown',
-        score: score || 0,
-        createdAt: content.createdAt || rest.createdAt
+        database: res.database || 'unknown',
+        contentId: res.document_id || content._id || res.id,
+        text: content.text || res.text || '',
+        tags: content.tags || res.tags || [],
+        score: res.score || res.annScore || 0,
+        metadata: {
+          matchedChunk: content.text || res.text || '',
+          sectionTitle: content.sectionTitle || res.metadata?.sectionTitle || '',
+          healedContext: true,
+          project: content.project || res.project || 'unknown',
+          model: res.model || 'unknown'
+        }
       };
     });
   }

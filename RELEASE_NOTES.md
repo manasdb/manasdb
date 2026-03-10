@@ -16,6 +16,8 @@
 - **Cache-Bypass for Ultra-Short Queries**: Added logic to instantly route queries of 2 words or less directly to databases to prevent TCP cache-fetch overhead.
 - **Reasoning Cache Short-circuit**: `reasoningRecall()` result payloads are now instantly cached in Tier 1 and Tier 2, offering up to 100x performance improvements for recurring tree searches.
 - **Lazy-Loaded Cache Provider**: Redis (`ioredis`) is implemented via the `ProviderFactory` lazy-loading architecture. It will only be imported and instantiated if `cache: { provider: 'redis' }` is explicitly configured, ensuring zero bloat or crash-risk for users relying purely on MongoDB or Postgres.
+- **Financial Cost Telemetry (`CostCalculator`)**: Integrated token estimation and USD cost calculations natively into `absorb()` and the `_trace` responses of all indexing operations.
+- **Universal Polyglot Schema (`SearchFormatter`)**: Centralized and sanitized all raw database returns (MongoDB and Postgres) into one identical output schema contract before hitting the caller loop.
 - New benchmarking scripts for measuring Redis caching overhead vs DB vector search (`examples/mongodb-redis/benchmark-reasoning.js`, `examples/postgres-redis/benchmark-reasoning.js`).
 
 ---

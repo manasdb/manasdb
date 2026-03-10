@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cache-Bypass for Ultra-Short Queries**: Added logic to instantly route queries of 2 words or less directly to databases to prevent TCP cache-fetch overhead.
 - **Reasoning Cache Short-circuit**: `reasoningRecall()` result payloads are now instantly cached in Tier 1 and Tier 2, offering up to 100x performance improvements for recurring tree searches.
 - **Lazy-Loaded Cache Provider**: Redis (`ioredis`) is implemented via the `ProviderFactory` lazy-loading architecture. It will only be imported and instantiated if `cache: { provider: 'redis' }` is explicitly configured, ensuring zero bloat or crash-risk for users relying purely on MongoDB or Postgres.
+- **Financial Cost Telemetry (`CostCalculator`)**: Integrated `CostCalculator.js` into the `absorb()` and `recall()` pipelines. It estimates exact token usage and computes real-world USD costs based on underlying AI Provider pricing tables, surfacing them instantly inside the `_trace` and `costAnalysis` payload outputs.
+- **Universal Polyglot Schema (`SearchFormatter`)**: Repurposed `SearchFormatter.js` from a native-MongoDB utility to a global payload sanitizer. All polyglot database vectors (whether from Mongo Atlas or pgvector) are seamlessly normalized into a strictly typed schema upon retrieval, guaranteeing consumers never deal with raw divergent database constructs.
 - New benchmarking scripts for measuring Redis caching overhead vs DB vector search (`examples/mongodb-redis/benchmark-reasoning.js`, `examples/postgres-redis/benchmark-reasoning.js`).
 
 ## [0.3.2] - 2026-03-09
