@@ -49,7 +49,9 @@ ManasDB moves that retrieval intelligence **into the storage layer itself**:
 ```
 Application
     ↓
-ManasDB SDK  ←── Hybrid Retrieval · Cache · PII Shield · Telemetry
+ManasDB SDK  ←── Cache · Tree Reasoning · PII Shield · Telemetry
+    ├── Tier 1 Redis (Semantic Cache)
+    └── Tier 2 In-Memory LRU (Semantic Cache)
     ├── MongoDB Atlas  ($vectorSearch + full-text)
     └── PostgreSQL     (pgvector + tsvector)
 ```
@@ -180,6 +182,8 @@ const memory = new ManasDB({
     { type: "mongodb", uri: process.env.MONGODB_URI, dbName: "my_ai_app" },
     { type: "postgres", uri: process.env.POSTGRES_URI },
   ],
+  cache: { provider: "redis", uri: process.env.REDIS_URI }, // Tier 1 Cache
+  reasoning: { enabled: true }, // Enable Hierarchical Tree Index
   projectName: "knowledge_base",
   modelConfig: { source: "transformers" },
   telemetry: true,
@@ -194,19 +198,21 @@ await memory.absorb(`
   Its primary mirror spans 6.5 meters and is made of 18 hexagonal beryllium segments.
 `);
 
-// Retrieve precise answers
-const results = await memory.recall("What is James Webb's mirror made of?", {
-  mode: "qa", // Uses Sentence Micro-Index for razor precision
-  limit: 3,
-  minScore: 0.1,
-});
+// Retrieve precise answers using Hierarchical Reasoning Tree
+const treeResult = await memory.reasoningRecall(
+  "What is James Webb's mirror made of?",
+  {
+    topSections: 3,
+    topSection: 0,
+  },
+);
 
-console.log(results[0].metadata.matchedChunk);
+console.log(treeResult.leaves[0].text);
 // → "Its primary mirror spans 6.5 meters and is made of 18 hexagonal beryllium segments."
 
-// Access the pipeline trace
-console.log(results._trace);
-// → { cacheHit: false, rrfMerged: false, tokens: 9, costUSD: 0 }
+// Access the pipeline trace to view telemetry and caching
+console.log(treeResult._trace);
+// → { reasoning: true, cacheHit: 'redis', tokens: 9, costUSD: 0 }
 ```
 
 ---
@@ -229,6 +235,29 @@ Use it in any AI product that needs to:
 
 ---
 
+## 🤝 Contributing
+
+If ManasDB saves you time, consider supporting development:
+
+[![Support ManasDB](https://img.shields.io/badge/Support-ManasDB-%230066CC?style=for-the-badge&logo=razorpay&logoColor=white)](https://razorpay.me/@manasdb)
+
+Contributions are also welcome via PRs! Please open an issue before submitting a pull request.
+
+```bash
+# Clone and install
+git clone https://github.com/manasdb/manasdb.git
+cd manasdb
+npm install
+
+# Run the test suite
+npm run test:all
+
+# Run health check
+npm run health
+```
+
+---
+
 ## 🆚 Why Not LangChain / LlamaIndex?
 
 LangChain and LlamaIndex operate at the **application orchestration layer**. They are excellent for chaining LLM calls, routing agents, and building prompt pipelines. ManasDB is complementary — not competing.
@@ -240,6 +269,8 @@ LangChain and LlamaIndex operate at the **application orchestration layer**. The
 | **Privacy**        | Cloud dependent           | Cloud only   | ✅ Fully local                  |
 | **MCP native**     | ✗                         | Partial      | ✅ Working today                |
 | **Hybrid search**  | Manual, per-integration   | Limited      | ✅ RRF + MMR built-in           |
+| **Caching**        | Custom integration req.   | Limited      | ✅ Tier 1 Redis & In-Memory LRU |
+| **Tree Reasoning** | Manual chain building     | ✗            | ✅ Native `reasoningRecall()`   |
 | **Cost tracking**  | External tooling needed   | ✗            | Native telemetry table          |
 | **PII protection** | Plugin-dependent          | ✗            | ✅ Built-in per-field redaction |
 | **Trace debug**    | ✗                         | ✗            | ✅ Every `recall()`             |
@@ -860,29 +891,6 @@ ManasDB automatically migrates and configures schemas. Both **MongoDB** and **Po
 **Enterprise features**: Commercial License
 
 For commercial licensing and enterprise support, open a [GitHub Discussion](https://github.com/manasdb/manasdb/discussions).
-
----
-
-## 🤝 Contributing
-
-If ManasDB saves you time, consider supporting development:
-
-[![Support ManasDB](https://img.shields.io/badge/Support-ManasDB-%230066CC?style=for-the-badge&logo=razorpay&logoColor=white)](https://razorpay.me/@manasdb)
-
-Contributions are also welcome via PRs! Please open an issue before submitting a pull request.
-
-```bash
-# Clone and install
-git clone https://github.com/manasdb/manasdb.git
-cd manasdb
-npm install
-
-# Run the test suite
-npm run test:random
-
-# Run health check
-npm run health
-```
 
 ---
 
