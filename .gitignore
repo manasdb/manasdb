@@ -140,3 +140,7 @@ vite.config.ts.timestamp-*
 
 # txt files
 *.txt
+
+# lock files
+package-lock.json
+
