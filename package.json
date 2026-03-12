@@ -1,6 +1,6 @@
 {
   "name": "@manasdb/core",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The memory layer for AI applications — hybrid RAG retrieval, PII shield, polyglot storage",
   "main": "dist/index.cjs",
   "exports": {
@@ -9,7 +9,7 @@
   },
   "type": "module",
   "author": "ManasDB Contributors",
-  "license": "Apache-2.0 WITH Commons-Clause",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/manasdb/manasdb#readme",
   "bugs": {
     "url": "https://github.com/manasdb/manasdb/issues"
