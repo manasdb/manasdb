@@ -170,40 +170,42 @@ class MongoProvider extends BaseProvider {
     return { database: 'mongodb', contentId: document_id, vectorIds, chunksInserted: chunks.length, isDeduplicated };
   }
 
-  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa' }) {
+  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa', includeVector = false }) {
     const db = MongoConnection.getDb();
     const vectorsCollection = db.collection('_manas_vectors');
     const chunksCollection  = db.collection('_manas_chunks');
 
     const indexName  = `vector_index_${queryVector.length}`;
 
-    // A simplified Atlas vector search returning chunks.
-    const annPipeline = [
-      {
-        $vectorSearch: {
-          index: indexName,
-          path:  'vector',
-          queryVector,
-          numCandidates: limit * 10,
-          limit: limit * 2,
-          filter: { model: aiModelName },
+      const projectStage = {
+        _id: 1, chunk_id: 1, document_id: 1,
+        annScore: { $meta: 'vectorSearchScore' },
+      };
+      if (includeVector) projectStage.vector = 1;
+
+      const annPipeline = [
+        {
+          $vectorSearch: {
+            index: indexName,
+            path:  'vector',
+            queryVector,
+            numCandidates: limit * 10,
+            limit: limit * 2,
+            filter: { model: aiModelName },
+          },
         },
-      },
-      {
-        $project: {
-          _id: 1, chunk_id: 1, document_id: 1,
-          annScore: { $meta: 'vectorSearchScore' },
+        {
+          $project: projectStage,
         },
-      },
-      {
-        $lookup: {
-          from:         '_manas_chunks',
-          localField:   'chunk_id',
-          foreignField: '_id',
-          as:           'contentDetails',
+        {
+          $lookup: {
+            from:         '_manas_chunks',
+            localField:   'chunk_id',
+            foreignField: '_id',
+            as:           'contentDetails',
+          },
         },
-      },
-    ];
+      ];
 
     let annRaw = await vectorsCollection.aggregate(annPipeline).toArray();
 
@@ -237,13 +239,15 @@ class MongoProvider extends BaseProvider {
         let vec = fv.vector_full || fv.vector;
         if (typeof vec === 'object' && vec.buffer) vec = Array.from(vec);
         const annScore = MemoryEngine._cosine(queryVector, vec);
-        return {
+        const resObj = {
           _id: fv._id,
           chunk_id: fv.chunk_id, // old legacy chunk
           document_id: fv.document_id,
           embedding_hash: fv.embedding_hash,
           annScore
         };
+        if (includeVector) resObj.vector = vec; // Provide vector for MMR fallback
+        return resObj;
       }).filter(r => r.annScore >= minScore);
       
       annRaw.sort((a,b) => b.annScore - a.annScore);
@@ -265,7 +269,7 @@ class MongoProvider extends BaseProvider {
       // Fast path: Just return exact matched chunk (no Context Healing join)
       return filteredRaw.map(res => {
         const child = res.contentDetails[0];
-        return {
+        const resObj = {
           database: 'mongodb',
           chunk_id: child._id,
           document_id: child.document_id,
@@ -276,6 +280,8 @@ class MongoProvider extends BaseProvider {
             tags: child.tags || []
           }]
         };
+        if (includeVector && res.vector) resObj.vector = Array.from(res.vector);
+        return resObj;
       }).sort((a, b) => b.score - a.score).slice(0, limit);
     }
 
@@ -314,8 +320,7 @@ class MongoProvider extends BaseProvider {
 
     const healedParents = parentObjectIds.map(oid => {
       const d_id = oid.toString();
-      const matched = parentMatchedChunk[d_id] || {};
-      return {
+      const finalDoc = {
         database: 'mongodb',
         chunk_id: matched._id,
         document_id: oid,
@@ -327,6 +332,8 @@ class MongoProvider extends BaseProvider {
           tags: docTagsBuilder[d_id] || matched.tags || []
         }]
       };
+      if (includeVector && matched.vector) finalDoc.vector = Array.from(matched.vector);
+      return finalDoc;
     });
 
     healedParents.sort((a, b) => b.score - a.score);
@@ -341,6 +348,109 @@ class MongoProvider extends BaseProvider {
     await db.collection('_manas_vectors').deleteMany({ document_id: id });
     await db.collection('_manas_chunks').deleteMany({ document_id: id });
     await db.collection('_manas_documents').deleteOne({ _id: id });
+  }
+
+  async deleteMany(query) {
+    if (!query || Object.keys(query).length === 0) return;
+    const db = MongoConnection.getDb();
+    
+    // Convert { userId: "123" } -> { "tags.userId": "123", project: "default" }
+    // Map tag query to mongo format: { "tags.key": "val" }
+    const mongoQuery = { project: this.projectName };
+    for (const [k, v] of Object.entries(query)) {
+      mongoQuery[`tags.${k}`] = v;
+    }
+    
+    const docs = await db.collection('_manas_documents').find(mongoQuery, { projection: { _id: 1 } }).toArray();
+    const docIds = docs.map(d => d._id);
+    
+    if (docIds.length > 0) {
+      await db.collection('_manas_vectors').deleteMany({ document_id: { $in: docIds } });
+      await db.collection('_manas_chunks').deleteMany({ document_id: { $in: docIds } });
+      const res = await db.collection('_manas_documents').deleteMany({ _id: { $in: docIds } });
+      return res.deletedCount;
+    }
+    return 0;
+  }
+
+  async clearAll() {
+    const db = MongoConnection.getDb();
+    if (!db) return { deletedTotal: 0 };
+    const chunksRes = await db.collection('_manas_chunks').deleteMany({ project: this.projectName });
+    const vectorRes = await db.collection('_manas_vectors').deleteMany({ project: this.projectName });
+    const docsRes   = await db.collection('_manas_documents').deleteMany({ project: this.projectName });
+    return {
+      deletedTotal: (chunksRes.deletedCount || 0) + (vectorRes.deletedCount || 0) + (docsRes.deletedCount || 0)
+    };
+  }
+
+  /**
+   * Retrieves the project manifest (model info).
+   */
+  async getManifest() {
+    const db = MongoConnection.getDb();
+    if (!db) return null;
+    return await db.collection('_manas_config').findOne({ key: 'manifest', project: this.projectName });
+  }
+
+  /**
+   * Updates the project manifest.
+   */
+  async updateManifest(manifest) {
+    const db = MongoConnection.getDb();
+    if (!db) return;
+    await db.collection('_manas_config').updateOne(
+      { key: 'manifest', project: this.projectName },
+      { $set: { ...manifest, updatedAt: new Date() } },
+      { upsert: true }
+    );
+  }
+
+  /**
+   * Bulk deletes memories older than a specific date.
+   */
+  async expireOlderThan(date) {
+    const db = MongoConnection.getDb();
+    if (!db) return 0;
+    
+    // Postgres cascades, but Mongo needs manual cascading across collections
+    const docs = await db.collection('_manas_documents').find({
+      project: this.projectName,
+      createdAt: { $lt: date }
+    }).toArray();
+    
+    if (docs.length === 0) return 0;
+    const docIds = docs.map(d => d._id);
+    
+    await db.collection('_manas_chunks').deleteMany({ document_id: { $in: docIds } });
+    await db.collection('_manas_vectors').deleteMany({ chunk_id: { $in: docIds } }); // approximation if chunk_id is used
+    return res.deletedCount;
+  }
+
+  /**
+   * Calculates total spend for the current project in the current month.
+   */
+  async getMonthlySpend() {
+    const db = MongoConnection.getDb();
+    if (!db) return 0;
+    
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0,0,0,0);
+    
+    const pipeline = [
+      { $match: { 
+          project: this.projectName,
+          timestamp: { $gte: startOfMonth }
+      }},
+      { $group: {
+          _id: null,
+          totalSpend: { $sum: "$financial.actual_cost" }
+      }}
+    ];
+    
+    const result = await db.collection('_manas_telemetry').aggregate(pipeline).toArray();
+    return result.length > 0 ? result[0].totalSpend : 0;
   }
 
   async clear() {
@@ -369,6 +479,23 @@ class MongoProvider extends BaseProvider {
       telemetryCollection.insertOne(telemetryDoc).catch(() => {});
     } catch(e) {}
   }
+
+  async list(limit = 10) {
+    const db = MongoConnection.getDb();
+    const docs = await db.collection('_manas_documents')
+      .find({ project: this.projectName })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+
+    return docs.map(d => ({
+      contentId: d._id,
+      text: d.rawText || "", // We might need to handle context reconstruction if rawText is missing
+      createdAt: d.createdAt,
+      project: d.project
+    }));
+  }
+
   async close() {
     await MongoConnection.disconnect();
     if (this.debug) console.log(`[MongoProvider] Connection closed.`);

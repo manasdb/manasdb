@@ -82,6 +82,16 @@ class PostgresProvider extends BaseProvider {
       );
     `);
 
+    // 6. Create _manas_config (Manifest & Model Lock)
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS _manas_config (
+        key VARCHAR(255) PRIMARY KEY,
+        project VARCHAR(255) NOT NULL,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // Add telemetry fields dynamically for backwards compatibility
     try {
       await this.pool.query(`
@@ -207,13 +217,14 @@ class PostgresProvider extends BaseProvider {
     }
   }
 
-  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa' }) {
+  async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa', includeVector = false }) {
     const pgQueryVector = `[${queryVector.join(',')}]`;
 
     // ── Context-Healer JOIN across the 3 new matching tables ────
     const sql = `
       SELECT 
         v.id as vector_id,
+        ${includeVector ? 'v.vec as vector,' : ''}
         c.text as chunk_text,
         c.section_title as section_title,
         p.id as parent_id,
@@ -233,17 +244,26 @@ class PostgresProvider extends BaseProvider {
     
     // Normalize mapping so the SDK core receives unified JSON.
     // normalizeScore clamps to [0,1] for safe polyglot score merging.
-    let results = res.rows.map(row => ({
-      database: 'postgres',
-      chunk_id: row.vector_id,
-      document_id: row.parent_id,
-      score: normalizeScore(parseFloat(row.score)),
-      contentDetails: [{
-        text: row.chunk_text,
-        sectionTitle: row.section_title,
-        tags: row.tags
-      }]
-    }));
+    let results = res.rows.map(row => {
+      const resObj = {
+        database: 'postgres',
+        chunk_id: row.vector_id,
+        document_id: row.parent_id,
+        score: normalizeScore(parseFloat(row.score)),
+        contentDetails: [{
+          text: row.chunk_text,
+          sectionTitle: row.section_title,
+          tags: row.tags
+        }]
+      };
+      
+      if (includeVector && row.vector) {
+        resObj.vector = (typeof row.vector === 'string' && row.vector.startsWith('[')) 
+             ? JSON.parse(row.vector) 
+             : row.vector;
+      }
+      return resObj;
+    });
 
     if (mode === 'document' && results.length > 0) {
       // Context-Healer: Join all chunks for the top parent documents
@@ -288,8 +308,31 @@ class PostgresProvider extends BaseProvider {
     await this.pool.query('DELETE FROM _manas_documents WHERE id = $1 AND project = $2', [documentId, this.projectName]);
   }
 
+  async deleteMany(query) {
+    if (!query || Object.keys(query).length === 0) return;
+    
+    const conditions = [];
+    const values = [this.projectName];
+    let i = 2;
+    for (const [k, v] of Object.entries(query)) {
+      conditions.push(`tags->>'${k}' = $${i}`);
+      values.push(String(v));
+      i++;
+    }
+    
+    if (conditions.length === 0) return;
+    const whereClause = conditions.join(' AND ');
+    
+    // Postgres cascades deletes to chunks and vectors automatically by schema Definition
+    const res = await this.pool.query(
+      `DELETE FROM _manas_documents WHERE project = $1 AND ${whereClause}`,
+      values
+    );
+    return res.rowCount;
+  }
+
   async clear() {
-    await this.pool.query('TRUNCATE _manas_vectors, _manas_chunks, _manas_documents CASCADE;');
+    await this.pool.query('DELETE FROM _manas_documents WHERE project = $1', [this.projectName]);
   }
 
   async clearTelemetry() {
@@ -327,6 +370,59 @@ class PostgresProvider extends BaseProvider {
         ]
       );
     } catch (e) {}
+  }
+
+  /**
+   * Retrieves the project manifest (model info).
+   */
+  async getManifest() {
+    const res = await this.pool.query(
+      "SELECT data FROM _manas_config WHERE key = 'manifest' AND project = $1 LIMIT 1",
+      [this.projectName]
+    );
+    return res.rows.length > 0 ? res.rows[0].data : null;
+  }
+
+  /**
+   * Updates the project manifest.
+   */
+  async updateManifest(manifest) {
+    await this.pool.query(
+      `INSERT INTO _manas_config (key, project, data, updated_at)
+       VALUES ('manifest', $1, $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
+      [this.projectName, JSON.stringify(manifest)]
+    );
+  }
+
+  /**
+   * Bulk deletes memories older than a specific date.
+   */
+  async expireOlderThan(date) {
+    // Postgres cascades deletes automatically via schema definition
+    const res = await this.pool.query(
+      'DELETE FROM _manas_documents WHERE project = $1 AND created_at < $2',
+      [this.projectName, date]
+    );
+    return res.rowCount;
+  }
+
+  /**
+   * Calculates total spend for the current project in the current month.
+   */
+  async getMonthlySpend() {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0,0,0,0);
+    
+    const res = await this.pool.query(
+      `SELECT SUM((financial->>'actual_cost')::numeric) as total
+       FROM _manas_telemetry 
+       WHERE project = $1 AND created_at >= $2`,
+      [this.projectName, startOfMonth]
+    );
+    
+    return parseFloat(res.rows[0].total || 0);
   }
 }
 

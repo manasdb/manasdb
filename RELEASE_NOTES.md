@@ -1,4 +1,49 @@
-# Release Notes
+# Release Notes - ManasDB
+
+## Version 0.4.2
+
+**Tag:** `v0.4.2`
+**Date:** 2026-03-17
+
+### Major Features
+
+- **Zero-Config Onboarding**: Developers can now experiment with ManasDB in 30 seconds. Passing an empty config to `new ManasDB({})` automatically initializes an in-memory storage layer and local CPU embeddings.
+- **Compliant Erasure Audit**: `forgetMany()` has been overhauled for GDPR/SOC2 compliance. It now returns an audit object containing timestamps and a breakdown of deletions across the polyglot stack.
+- **MMR (Maximal Marginal Relevance) Tuning**: Added a first-class `lambda` parameter to `recall()`. Developers can now prevent "repetitive answers" by increasing diversity in the retrieved context pool.
+- **Budget Guardrails**: Never wake up to a surprise bill. Block ingestion and queries before they exceed your monthly cap.
+- **Model Lock**: Safety mechanism that prevents querying a collection with the wrong embedding model dimensions.
+- **Seamless Migration**: Move your data from MongoDB to Postgres or swap embedding models with a single command.
+- **Semantic Pruning**: Bulk deduplication tools to clean up noisy datasets and redundant memories.
+- **Observability Hooks**: Subscribe to internal decision traces programmatically for real-time monitoring.
+
+### Robustness & Reliability
+
+- **Failure Modes Documentation**: A dedicated production guide (Category 15) is now available, explaining graceful degradation during database outages, Redis cache downtime, and API rate limiting.
+- **Strict Project Isolation**: Hardened the multi-tenancy layer to ensure project-specific deletions (`clearAll`, `forgetMany`) never leak across `projectName` boundaries.
+
+### Enhancements
+
+- **README Hello World**: Added a "30-Second Bootstrap" snippet to the top of the README.
+- **Polyglot Deletion Sync**: Ensured that compliance erasure requests are broadcast and verified across all providers in parallel.
+
+### CLI Enhancements
+
+- `npx manas cost-estimate "Hello World"`: Know the cost before you commit.
+
+---
+
+## Version 0.4.1
+
+**Tag:** `v0.4.1`
+**Date:** 2026-03-12
+
+### Changed
+
+- **.gitignore**: Added `package-lock.json` to `.gitignore`.
+
+### Major Features
+
+---
 
 ## Version 0.4.0
 

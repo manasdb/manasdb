@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import * as dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
+import CostCalculator from '../src/utils/CostCalculator.js';
 
 // Load .env from current working directory
 dotenv.config();
@@ -277,6 +278,30 @@ program
             console.log(e);
             process.exit(1);
         }
+    });
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  cost-estimate — Pre-flight cost analysis
+// ──────────────────────────────────────────────────────────────────────────────
+program
+    .command('cost-estimate <text>')
+    .description('Estimate embedding cost for a piece of text across different providers')
+    .option('-m, --model <model>', 'Specific model for estimation (openai, gemini, ollama)', 'openai')
+    .action((text, options) => {
+        console.log(chalk.cyan(`\n[INFO] Estimating Cost for text (${text.length} chars)...\n`));
+        
+        const estimation = CostCalculator.estimateAbsorbCost(text, options.model);
+        
+        console.log(chalk.bold('Estimation Details:'));
+        console.log(`  Model:           ${chalk.white(estimation.model)}`);
+        console.log(`  Estimated Tokens: ${chalk.green(estimation.tokens)}`);
+        console.log(`  Estimated Cost:  ${chalk.yellow('$' + estimation.costUSD.toFixed(6))}`);
+        
+        if (estimation.costUSD === 0) {
+            console.log(chalk.dim('\n  (Note: Ollama and local models have $0.00 API cost)'));
+        }
+        
+        console.log('\n');
     });
 
 program.parse(process.argv);

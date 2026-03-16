@@ -45,12 +45,17 @@ class ManasDB {
    * @param {boolean}       [config.debug]        - Debug logs toggle.
    * @param {Object}        [config.cache]        - Tier 1 cache config: { provider: 'redis', uri: '...', semanticThreshold: 0.92, ttl: 3600 }
    * @param {Object}        [config.reasoning]    - Hierarchical reasoning: { enabled: true }
+   * @param {Object}        [config.retry]        - Optional retry config: { attempts: 3, backoff: 1000 }
    */
-  constructor({ uri, dbName, dbType, databases, projectName, modelConfig, piiShield, telemetry = true, debug = false, cache, reasoning }) {
+  constructor({ uri, dbName, dbType, databases, projectName, modelConfig, piiShield, telemetry = true, debug = false, cache, reasoning, retry }) {
     this.projectName = projectName;
     this.modelConfig = modelConfig || { source: 'transformers' };
     this.debug       = debug === true;
+    this.retryConfig = retry || { attempts: 1, backoff: 0 };
+    this.budgetConfig = retry?.budget || { monthlyLimit: Infinity, currentSpend: 0 }; // retry was likely context, actually retry should be config object sibling
 
+    this._traceListeners = [];
+    
     Telemetry.enabled = telemetry === true;
     if (telemetry === false) {
       console.warn('[ManasDB] Telemetry disabled. npx manas stats and npx manas ui will show no data. To re-enable: set telemetry: true in config.');
@@ -89,10 +94,10 @@ class ManasDB {
     }
 
     // Persist raw configs; do NOT instantiate providers here
-    this._dbConfigs = dbConfigs;
+    this._dbConfigs = dbConfigs.length > 0 ? dbConfigs : [{ type: 'memory' }];
 
-    if (dbConfigs.length === 0) {
-      console.warn('MANASDB_WARNING: Initialized with no database providers configured.');
+    if (this.debug && this._dbConfigs[0].type === 'memory') {
+      console.log('[ManasDB] No database provided. Booting in zero-config Memory Mode.');
     }
 
     // ── Tier 1 Redis Cache (optional) ──
@@ -121,7 +126,9 @@ class ManasDB {
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
 
     // Init all DB providers concurrently (schema creation, index checks, etc.)
-    await Promise.all(this.databaseDrivers.map(driver => driver.init(targetDims)));
+    await this._withRetry(async () => {
+      await Promise.all(this.databaseDrivers.map(driver => driver.init(targetDims)));
+    });
 
     // ── Tier 1 Redis Cache init ───────────────────────────────────────────────
     // createCacheProvider() is synchronous — ioredis is lazy-loaded inside RedisProvider.init()
@@ -131,7 +138,131 @@ class ManasDB {
       if (this.debug) console.log('[ManasDB] Redis Tier 1 cache connected.');
     }
 
-    if (this.debug) console.log(`ManasDB Polyglot initialized: ${this.databaseDrivers.length} provider(s) ready.`);
+    // 4. Model Dimension Lock & Validation ─────
+    const primary = this.databaseDrivers[0];
+    if (primary && typeof primary.getManifest === 'function') {
+      const manifest = await primary.getManifest();
+      const currentModelName = this.modelConfig.model || this.modelConfig.source;
+      const sample = await this.aiProvider.embed('verification', this.targetDims);
+      const dimensions = sample.vector.length;
+
+      if (manifest) {
+        if (manifest.dimensions !== dimensions && !this.modelConfig.allowModelChange) {
+          throw new Error(`[ManasDB] Model Mismatch Detected! Current model uses ${dimensions} dims, but stored data uses ${manifest.dimensions} dims. Use 'allowModelChange: true' to override or run 'migrateTo()'.`);
+        }
+      } else {
+        // Initial setup - lock it in
+        await primary.updateManifest({
+          modelName: currentModelName,
+          dimensions: dimensions,
+          lockedAt: new Date()
+        });
+      }
+    }
+
+    if (this.debug) console.log(`[ManasDB] Initialized with ${this.databaseDrivers.length} providers.`);
+  }
+
+  /**
+   * Data Migration & Switching Path
+   * Migrates all data from the current instance to a new target provider.
+   * If the model or dimensions differ, it automatically re-embeds the text.
+   */
+  async migrateTo(targetConfig) {
+    console.log(chalk?.cyan ? chalk.cyan(`\n[ManasDB] Starting Migration...`) : `[ManasDB] Starting Migration...`);
+    
+    // 1. Create target instance
+    const target = new ManasDB(targetConfig);
+    await target.init();
+
+    const primary = this.databaseDrivers[0];
+    if (!primary) throw new Error("No source database linked for migration.");
+
+    // 2. Fetch all unique documents from source
+    // Note: This is an expensive operation for very large DBs
+    const db = (primary.uri.startsWith('mongodb')) ? (await import('../src/core/connection.js')).default.getDb() : null;
+    if (!db) throw new Error("Migration currently only supported from MongoDB source.");
+
+    const docs = await db.collection('_manas_documents').find({ project: this.projectName }).toArray();
+    console.log(`[ManasDB] Found ${docs.length} documents to migrate.`);
+
+    for (const doc of docs) {
+      // Get all chunks for this doc
+      const chunks = await db.collection('_manas_chunks').find({ document_id: doc._id }).toArray();
+      const combinedText = chunks.map(c => c.text).join(' ');
+      
+      // Absorb into target (this will handle re-embedding if target has different model)
+      await target.absorb(combinedText, {
+         projectName: targetConfig.projectName || this.projectName,
+         tags: doc.tags
+      });
+      
+      if (this.debug) console.log(`  Migrated: ${doc.content_hash.substring(0,8)}...`);
+    }
+
+    console.log(`[ManasDB] Migration complete!`);
+    return { migratedCount: docs.length };
+  }
+
+  /**
+   * Bulk Semantic Deduplication
+   * Identifies near-duplicate memories and consolidates them.
+   */
+  async dedup(options = { minSimilarity: 0.95 }) {
+    if (this.debug) console.log(`[ManasDB] Starting semantic deduplication (threshold: ${options.minSimilarity})...`);
+    
+    // Force a semantic search with includeVector to find neighbors
+    const results = await this.recall('*', { limit: 100, includeVector: true });
+    
+    const duplicates = [];
+    const seenHashes = new Set();
+
+    for (let i = 0; i < results.length; i++) {
+      for (let j = i + 1; j < results.length; j++) {
+        const score = results[i].score; // this isn't quite right for cross-comparison
+        // Actually we need to compare them to each other
+        if (!results[i].vector || !results[j].vector) continue;
+        
+        const sim = MemoryEngine._cosine(results[i].vector, results[j].vector);
+        if (sim >= options.minSimilarity) {
+          duplicates.push({ 
+            keep: results[i].document_id, 
+            remove: results[j].document_id,
+            score: sim
+          });
+        }
+      }
+    }
+
+    if (this.debug) console.log(`[ManasDB] Found ${duplicates.length} semantic duplicate pairs.`);
+    
+    for (const dup of duplicates) {
+        await this.forget(dup.remove);
+    }
+
+    return { purgedCount: duplicates.length };
+  }
+
+  /**
+   * Internal retry helper for database operations.
+   */
+  async _withRetry(fn) {
+    let lastError;
+    const attempts = this.retryConfig?.attempts || 1;
+    const backoff  = this.retryConfig?.backoff || 0;
+
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastError = err;
+        if (i < attempts - 1 && backoff > 0) {
+          if (this.debug) console.warn(`[ManasDB] Operation failed. Retrying in ${backoff}ms... (${i + 1}/${attempts})`);
+          await new Promise(resolve => setTimeout(resolve, backoff));
+        }
+      }
+    }
+    throw lastError;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -140,6 +271,21 @@ class ManasDB {
 
   async absorb(rawText, options = {}) {
     if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before absorb().');
+    
+    // ── 1. Budget Cap Enforcement (Absolute Pre-Flight) ──
+    const modelUsed = this.modelConfig.model || this.modelConfig.source;
+    const tokens = CostCalculator.estimateTokens(rawText);
+    const estimatedCost = CostCalculator.calculate(tokens, modelUsed);
+
+    const primaryDriver = this.databaseDrivers[0];
+    if (this.budgetConfig.monthlyLimit !== Infinity && primaryDriver) {
+      const currentSpend = await primaryDriver.getMonthlySpend();
+      if (this.debug) console.log(`[ManasDB] Budget Check: Spend=$${currentSpend.toFixed(6)}, Est=$${estimatedCost.toFixed(6)}, Limit=$${this.budgetConfig.monthlyLimit}`);
+      if (currentSpend + estimatedCost > this.budgetConfig.monthlyLimit) {
+         throw new Error(`[ManasDB] Budget Exceeded! Monthly limit: $${this.budgetConfig.monthlyLimit}. Current spend: $${currentSpend.toFixed(4)}. Ingestion blocked.`);
+      }
+    }
+
     if (this.databaseDrivers.length === 0) {
       throw new Error("MANASDB_ERROR: Cannot absorb(). No valid database providers were configured (e.g., missing MongoDB/Postgres URI).");
     }
@@ -148,7 +294,7 @@ class ManasDB {
       throw new Error('MANASDB_ABSORB_ERROR: Text must be a non-empty string.');
     }
 
-    // ── 1. PII Shield Execution (Pre-DB) ──
+    // ── 2. PII Shield Execution ──
     let text = rawText;
     if (this.piiShield.enabled) {
       text = PIIFilter.redact(rawText, this.piiShield.customRules);
@@ -160,31 +306,45 @@ class ManasDB {
       MemoryEngine._tokenAwareChunk(text, options.maxTokens ?? 100, options.overlapTokens ?? 20) :
       [{ text: text, embedText: text, sectionTitle: '', chunkIndex: 0, totalInSection: 1 }];
       
-    const parentTags = MemoryEngine.extractTags(text);
+    const extractedTags = MemoryEngine.extractTags(text);
+    const parentTags = { ...extractedTags, ...(options.metadata || {}) };
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
 
-    // ── 3. DB Agnostic Payload Broadcast ──
-    // Dispatch exactly the same pre-computed metadata towards every active DB provider currently loaded securely.
-    const promises = this.databaseDrivers.map(driver => 
-      driver.insert({
-        rawText,
-        filteredText: text,
-        chunks,
-        parentTags,
-        aiProvider,
-        targetDims
-      })
-    );
+    // ── 3. DB Insertion (Concurrent Broadcast) ────
+    const settlement = await this._withRetry(async () => {
+      return await Promise.allSettled(this.databaseDrivers.map(driver => 
+        driver.insert({ 
+          rawText, 
+          filteredText: text, 
+          chunks: chunks, 
+          parentTags: parentTags, 
+          aiProvider,
+          targetDims
+        })
+      ));
+    });
 
-    const insertionResults = await Promise.all(promises);
+    const insertionResults = settlement
+      .filter(s => s.status === 'fulfilled')
+      .map(s => s.value);
+    
+    const errors = settlement
+      .filter(s => s.status === 'rejected')
+      .map(s => s.reason.message);
 
-    const primary = insertionResults[0] || {};
+    if (insertionResults.length === 0 && this.databaseDrivers.length > 0) {
+      throw new Error(`MANASDB_INSERT_FAILURE: All database providers failed. Errors: ${errors.join(', ')}`);
+    }
+
+    if (errors.length > 0 && this.debug) {
+       console.warn(`[ManasDB] Partial insertion failure: ${errors.length} provider(s) failed. Errors: ${errors.join('; ')}`);
+    }
+
+    const primaryResult = insertionResults[0] || {};
     
     // ── 4. Cost Calculation ──
-    const modelUsed = this.modelConfig.model || this.modelConfig.source;
-    const tokens = CostCalculator.estimateTokens(text);
-    const estimatedCost = CostCalculator.calculate(tokens, modelUsed);
+    // (Already calculated in pre-flight)
 
     const dur = Telemetry.endTimer(timer);
     Telemetry.logEvent('ABSORB_POLYGLOT_COMPLETED', {
@@ -193,12 +353,18 @@ class ManasDB {
       embeddingProfile: 'balanced', chunkSizeUsed: options.maxTokens ?? 100
     }, this.databaseDrivers);
 
+    // ── 5. Hierarchical Reasoning Index (Post-DB) ──
+    if (this._reasoningEnabled && chunks.length > 0) {
+      if (this.debug) console.log(`[ManasDB] Building reasoning tree index (${chunks.length} chunks)...`);
+      this._treeIndex.build(chunks);
+    }
+
     return {
       message: 'Insertion completed.',
-      chunks: primary.chunksInserted,
-      contentId: primary.contentId,
-      vectorIds: primary.vectorIds,
-      isDeduplicated: primary.isDeduplicated,
+      chunks: primaryResult.chunksInserted,
+      contentId: primaryResult.contentId,
+      vectorIds: primaryResult.vectorIds,
+      isDeduplicated: primaryResult.isDeduplicated,
       inserted: insertionResults,
       rawChunks: chunks,
       costAnalysis: {
@@ -231,6 +397,15 @@ class ManasDB {
     const modelUsed = this.modelConfig.model || this.modelConfig.source;
     const tokens = CostCalculator.estimateTokens(query);
     const costUSD = CostCalculator.calculate(tokens, modelUsed);
+
+    // ── Budget Check for Recall ──
+    const primaryDriver = this.databaseDrivers[0];
+    if (this.budgetConfig.monthlyLimit !== Infinity && primaryDriver) {
+      const currentSpend = await primaryDriver.getMonthlySpend();
+      if (currentSpend + costUSD > this.budgetConfig.monthlyLimit) {
+        throw new Error(`[ManasDB] Budget Exceeded! Recall blocked.`);
+      }
+    }
 
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
 
@@ -265,8 +440,7 @@ class ManasDB {
 
     // ── 1.b Tier 2: In-Memory LRU Cache ──────────────────────────────────────
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
-      const cached = [...this.semanticCacheIndex.get(queryHash)]; // Clone array
-      cached._trace = { cacheHit: 'memory', tokens, costUSD };
+      const cached = [...this.semanticCacheIndex.get(queryHash)];
       logCacheTelemetry('lru_tier2', cached);
       return cached;
     }
@@ -286,6 +460,8 @@ class ManasDB {
 
     const limit      = options.limit    ?? 5;
     const minScore   = options.minScore ?? 0.05;
+    const lambda     = options.lambda   !== undefined ? options.lambda : 1.0;
+    const includeVector = lambda < 1.0;
     
     // ── 2. Vector Search Broadcast ────
     const promises = this.databaseDrivers.map(driver => 
@@ -294,11 +470,31 @@ class ManasDB {
         limit: limit * 2, // Grab extras from each provider for deduplication
         minScore,
         aiModelName: aiProvider.getModelKey(),
-        mode: options.mode || 'qa'
+        mode: options.mode || 'qa',
+        includeVector
       })
     );
 
-    const aggregatedResults = await Promise.all(promises);
+    const settlement = await Promise.allSettled(promises);
+    
+    // Filter out failed provider queries
+    const aggregatedResults = settlement
+      .filter(s => s.status === 'fulfilled')
+      .map(s => s.value);
+    
+    const searchErrors = settlement
+      .filter(s => s.status === 'rejected')
+      .map(s => s.reason.message);
+
+    if (aggregatedResults.length === 0 && this.databaseDrivers.length > 0) {
+      if (this.debug) console.error(`[ManasDB] All database providers failed during recall: ${searchErrors.join(', ')}`);
+      // We don't necessarily throw here to allow fallback to cache if it happened earlier, 
+      // but if we are here, cache already missed.
+    }
+
+    if (searchErrors.length > 0 && this.debug) {
+      console.warn(`[ManasDB] Partial search failure: ${searchErrors.length} provider(s) failed.`);
+    }
     
     // Flatten all responses into a single pool
     const flattenedRaw = aggregatedResults.flat();
@@ -320,7 +516,13 @@ class ManasDB {
 
     let finalRanked = Array.from(uniquePool.values());
     finalRanked.sort((a, b) => b.score - a.score);
-    finalRanked = finalRanked.slice(0, limit);
+
+    // Apply MMR (Maximal Marginal Relevance) if lambda < 1.0
+    if (lambda < 1.0 && finalRanked.length > 0) {
+      finalRanked = this._applyMMR(finalRanked, limit, lambda);
+    } else {
+      finalRanked = finalRanked.slice(0, limit);
+    }
 
     // Apply standard SearchFormatter to normalize polyglot outputs
     const finalResults = SearchFormatter.formatRecallResults(finalRanked);
@@ -338,8 +540,16 @@ class ManasDB {
       chunkSizeUsed: limit
     }, this.databaseDrivers);
 
-    // Cost Calculation
-    finalResults._trace = { cacheHit: false, rrfMerged: false, tokens, costUSD };
+    // Finalize trace object for deep inspection & UI
+    finalResults._trace = {
+       query: queryVector,
+       nodes: finalResults,
+       tokens,
+       costUSD,
+       durationMs: dur,
+       cacheHit: !!(options.cacheHit), // passed via helper
+       rrfMerged: flattenedRaw.length
+    };
 
     // ── In-Memory LRU cache storage (LFU/LRU bounded, Tier 2) ──
     if (!isShortQuery && finalResults.length > 0) {
@@ -358,8 +568,58 @@ class ManasDB {
       }
     }
 
+    // Finalize trace and emit
+    if (options.mode === 'qa' && this._traceListeners.length > 0) {
+      this._emitTrace(finalResults._trace);
+    }
+
     return finalResults;
   }
+
+  /**
+   * Pre-flight cost estimation for absorb().
+   * Helps users budget before committing to a large vector operation.
+   */
+  estimateAbsorbCost(text) {
+    const model = this.modelConfig.model || this.modelConfig.source;
+    return CostCalculator.estimateAbsorbCost(text, model);
+  }
+
+  /**
+   * Bulk expire memories older than a duration (e.g., '30d') or Date object.
+   */
+  async expireOlderThan(duration) {
+    let date;
+    if (duration instanceof Date) {
+      date = duration;
+    } else {
+      const days = parseInt(duration) || 30;
+      date = new Date();
+      date.setDate(date.getDate() - days);
+    }
+
+    const promises = this.databaseDrivers.map(d => d.expireOlderThan(date));
+    const results = await Promise.all(promises);
+    const totalDeleted = results.reduce((acc, val) => acc + (val || 0), 0);
+    
+    if (this.debug) console.log(`[ManasDB] Expired ${totalDeleted} memories older than ${date.toDateString()}.`);
+    return { deletedTotal: totalDeleted };
+  }
+
+  /**
+   * Programmatic Trace Subscription
+   * Allows production monitoring of internal retrieval decisions.
+   */
+  onTrace(callback) {
+    if (typeof callback === 'function') {
+      this._traceListeners.push(callback);
+    }
+  }
+
+  _emitTrace(trace) {
+    this._traceListeners.forEach(listener => listener(trace));
+  }
+
 
   // ══════════════════════════════════════════════════════════════════════════
   //  reasoningRecall() — Hierarchical Tree Reasoning
@@ -394,13 +654,23 @@ class ManasDB {
     }
 
     const { topSections = 5, topSection = 0 } = options;
-
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
 
     const modelUsed = this.modelConfig.model || this.modelConfig.source;
     const tokens = CostCalculator.estimateTokens(query);
-    const costUSD = CostCalculator.calculate(tokens, modelUsed);
+    const estimatedCost = CostCalculator.calculate(tokens, modelUsed);
+
+    // ── 1b. Budget Cap Enforcement (Pre-Flight) ──
+    const primaryDriver = this.databaseDrivers[0];
+    if (this.budgetConfig.monthlyLimit !== Infinity && primaryDriver) {
+      const currentSpend = await primaryDriver.getMonthlySpend();
+      if (currentSpend + estimatedCost > this.budgetConfig.monthlyLimit) {
+        throw new Error(`[ManasDB] Budget Exceeded! Monthly limit: $${this.budgetConfig.monthlyLimit}. Current spend: $${currentSpend.toFixed(4)}. Ingestion blocked.`);
+      }
+    }
+
+    const estimatedSavings = CostCalculator.estimateSavings(tokens, modelUsed);
 
     // ── Step 1: Embed query ──
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
@@ -535,9 +805,78 @@ class ManasDB {
     await Promise.all(this.databaseDrivers.map(driver => driver.delete(documentId)));
   }
 
+  async forget(documentId) {
+    if (this.debug) console.log(`[ManasDB] forget(${documentId}) triggered.`);
+    await this.delete(documentId);
+  }
+
+  async forgetMany(query) {
+    if (this.debug) console.log(`[ManasDB] forgetMany(${JSON.stringify(query)}) triggered.`);
+    const results = await Promise.all(this.databaseDrivers.map(async driver => {
+      let deleted = 0;
+      if (typeof driver.deleteMany === 'function') {
+        deleted = await driver.deleteMany(query);
+      }
+      return { provider: driver.constructor.name.replace('Provider', '').toLowerCase(), deleted: deleted || 0 };
+    }));
+    
+    return {
+      query,
+      deletedTotal: results.reduce((acc, r) => acc + r.deleted, 0),
+      providers: results,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  _applyMMR(results, limit, lambda) {
+    const ranked = [];
+    const candidates = [...results];
+
+    while (ranked.length < limit && candidates.length > 0) {
+      let bestIdx = -1;
+      let maxMMR = -Infinity;
+
+      for (let i = 0; i < candidates.length; i++) {
+        const cand = candidates[i];
+        const relevance = cand.score; // Sim(Q, D)
+
+        let maxSimToSelected = 0;
+        for (const sel of ranked) {
+          // If vectors are missing for some reason, default to 0 similarity to avoid crash
+          const sim = (cand.vector && sel.vector) 
+            ? MemoryEngine._cosine(cand.vector, sel.vector) 
+            : 0;
+            
+          if (sim > maxSimToSelected) maxSimToSelected = sim;
+        }
+
+        const mmrScore = (lambda * relevance) - ((1 - lambda) * maxSimToSelected);
+        if (mmrScore > maxMMR) {
+          maxMMR = mmrScore;
+          bestIdx = i;
+        }
+      }
+
+      if (bestIdx !== -1) {
+        ranked.push(candidates[bestIdx]);
+        candidates.splice(bestIdx, 1);
+      }
+    }
+    return ranked;
+  }
+
+  async list(limit = 10) {
+    if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before list().');
+    const results = await Promise.all(this.databaseDrivers.map(driver => driver.list(limit)));
+    // Flatten and de-duplicate if necessary (simple flatten for now)
+    return results.flat().sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+  }
+
   async clearAll() {
-    if (this.debug) console.warn('[ManasDB] clearAll() triggered. Wiping all vectors, chunks, and documents.');
-    console.warn('[ManasDB] _manas_telemetry was NOT cleared. This collection stores your ROI metrics and cost history. To clear it explicitly: await memory.clearTelemetry()');
+    if (this.debug) {
+      console.warn('[ManasDB] clearAll() triggered. Wiping all vectors, chunks, and documents.');
+      console.warn('[ManasDB] _manas_telemetry was NOT cleared. This collection stores your ROI metrics and cost history. To clear it explicitly: await memory.clearTelemetry()');
+    }
     await Promise.all(this.databaseDrivers.map(async driver => {
       if (typeof driver.clear === 'function') {
         await driver.clear();

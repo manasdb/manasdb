@@ -35,7 +35,7 @@ async function runBenchmark() {
 
     // 2. Absorb Text
     console.log(`[1] Absorbing Benchmark Document...`);
-    const absorbRes = await db.absorb(ARTICLE, { profile: 'speed' });
+    const absorbRes = await db.absorb(ARTICLE, { });
     console.log(`    -> Chunks processed: ${absorbRes.inserted[0].chunksInserted}\n`);
 
     // 3. Wait for PostgreSQL network insertion
@@ -49,7 +49,7 @@ async function runBenchmark() {
     
     // Pass 1: Cold Cache (Hits PostgreSQL)
     const t0 = performance.now();
-    const res1 = await db.recall(query, { limit: 1, profile: 'speed' });
+    const res1 = await db.recall(query, { limit: 1 });
     const t1 = performance.now();
     
     const dbLatency = (t1 - t0).toFixed(2);
@@ -60,7 +60,7 @@ async function runBenchmark() {
 
     // Pass 2: Warm Cache (Hits Redis)
     const t2 = performance.now();
-    const res2 = await db.recall(query, { limit: 1, profile: 'speed' });
+    const res2 = await db.recall(query, { limit: 1 });
     const t3 = performance.now();
 
     const redisLatency = (t3 - t2).toFixed(2);

@@ -19,7 +19,7 @@ Our script executes `vectorsCollection.aggregate(...)` passing in:
 
 We deliberately designed ManasDB sequentially across two collections logically for this exact function:
 
-- **Stage 1 (Find the Math)**: Atlas lightning-fast queries the `_manas_vectors` cluster, reading numerical coordinates securely finding the top mathematical matches efficiently mapping the requested `.profile`.
+- **Stage 1 (Find the Math)**: Atlas lightning-fast queries the `_manas_vectors` cluster, reading numerical coordinates securely finding the top mathematical matches efficiently mapping the requested vector dimensions.
 - **Stage 2 (Hydrate the Source)**: It triggers a `$lookup` passing the matched `content_id` upwards to `_manas_content` intelligently pulling the actual human text, tags, and timestamps matching those arrays.
 
 This structure allows us to query over 1 Million tiny arrays intelligently finding 10 ID correlations without ever loading raw text strings needlessly over network bands!
@@ -41,4 +41,4 @@ This is returned using `{ $meta: "vectorSearchScore" }`.
 1. **Query Translation**: Just like `absorb()`, we fetch `const { vector } = await provider.embed(query, targetDims)` converting our question "Where does the user work?" into math.
 2. **Execute Stage 1 & 2 ($vectorSearch + $lookup)**: Our MongoDB pipeline executes simultaneously across vectors, dropping weak scores `< minScore`, extracting matched content.
 3. **Array Cleanup**: The raw array natively returns nested metadata including huge chunks of `vector` floating point arrays natively. It calls `SearchFormatter.formatRecallResults()`.
-4. **`SearchFormatter` Execution**: It loops through the `rawResults`. It intentionally **drops** the `vector` array preventing 50MB of raw AI node data crashing client apps. It "destructures" nested layers natively flattening `{ id, text, tags, profile, score }` yielding a phenomenally clean, lightweight array JSON object standardizing UI implementations natively perfectly securely!
+4. **`SearchFormatter` Execution**: It loops through the `rawResults`. It intentionally **drops** the `vector` array preventing 50MB of raw AI node data crashing client apps. It "destructures" nested layers natively flattening `{ id, text, tags, score }` yielding a phenomenally clean, lightweight array JSON object standardizing UI implementations natively perfectly securely!

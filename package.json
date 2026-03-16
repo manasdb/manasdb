@@ -1,6 +1,6 @@
 {
   "name": "@manasdb/core",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "The memory layer for AI applications — hybrid RAG retrieval, PII shield, polyglot storage",
   "main": "dist/index.cjs",
   "exports": {

@@ -49,6 +49,17 @@ The SDK inspects the URI prefix (`mongodb://` / `postgres://`) to automatically 
 
 ---
 
+### Sequence 1: Memory Ingestion (`absorb`)
+
+1.  **Budget Pre-Flight**: System calculates estimated token cost. If `actual_spend + estimated > budget_cap`, the request is rejected with a 402-style error.
+2.  **PII Shield Utility**: Sanitizes text nodes using deterministic regex/NER patterns.
+3.  **MemoryEngine (AI)**: Normalizes text and routes it to the embedding provider (OpenAI, Gemini, or local Transformers).
+4.  **Polyglot Broadcast**: The resulting vector + original text + tags are sent to the `ProviderFactory`.
+5.  **Database Drivers**: `MongoProvider` and `PostgresProvider` execute parallel inserts. MongoDB handles the full JSON metadata; Postgres utilizes `pgvector` for HNSW-indexed nearest neighbor search.
+6.  **Telemetry**: Execution time, provider success rates, and actual financial costs are logged to a dedicated telemetry collection/table.
+
+---
+
 ## 2. The Ingestion Pipeline (Absorb)
 
 When a developer stores a sequence natively using `.absorb(text)`:

@@ -5,6 +5,38 @@ All notable changes to the ManasDB project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-03-17
+
+### Added
+
+- **Zero-Config Bootstrap**: Introduced `MemoryProvider`. ManasDB now boots instantly without a database URI or API key by defaulting to in-memory storage and local embeddings.
+- **GDPR-Centric Erasure Audit**: The `forgetMany(query)` method now returns a detailed audit trail including timestamps, counts, and searched providers, facilitating regulatory compliance reporting.
+- **MMR Diversity Control**: Added `lambda` parameter to `recall()` allowing developers to tune the balance between semantic relevance (repetition) and result diversity.
+- **Robustness Documentation**: Added `PLAN_13_FAILURE_MODES.md` and UI Category 15 detailing engine behavior during DB outages, API rate limits, and Redis failures.
+- **Hello World Snippet**: Added a 3-line rapid-start demo to the README for friction-less onboarding.
+- **Governance & Budgeting**: `budgetConfig` in constructor and pre-flight cost estimation logic.
+- **Model Dimension Lock**: Dimension mismatch detection in `init()` to prevent corrupted queries.
+- **Data Migration**: `ManasDB.migrateTo()` for switching databases or embedding models with re-embedding support.
+- **Memory Lifecycle**: `expireOlderThan(duration)` for TTL-based cleanup and `dedup(options)` for semantic pruning.
+- **Observability**: Programmatic `onTrace(callback)` hook for production monitoring.
+- **CLI Enhancements**: `npx manas cost-estimate <text>` command for pre-flight planning.
+- **Multi-Tenancy**: `ProjectRegistry` utility for managing isolated project instances.
+- **Robustness**: Moved budget checks to pre-flight to prevent unnecessary API costs.
+
+### Fixed
+
+- **Project-Scoped Deletions**: Resolved critical bugs in `MongoProvider.deleteMany` and `ManasDB.clearAll()` where data from other projects could be inadvertently cleared.
+- **Polyglot Consistency**: Fixed `forgetMany` behavior to ensure deletions are broadcasted correctly to all configured providers in polyglot mode.
+- **MemoryProvider Integration**: Corrected method signature mismatches between the new `MemoryProvider` and the core `MemoryEngine`.
+- **Trace Payload**: Comprehensive JSON trace including query vectors, nodes, tokens, and duration.
+- **MemoryProvider**: Added `getMonthlySpend` shim for budget compatibility.
+
+## [0.4.1] - 2026-03-12
+
+### Changed
+
+- **.gitignore**: Added `package-lock.json` to `.gitignore`.
+
 ## [0.4.0] - 2026-03-10
 
 ### Added

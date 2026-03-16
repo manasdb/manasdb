@@ -56,6 +56,15 @@ class BaseProvider {
   }
 
   /**
+   * Retrieves the most recent documents from the database.
+   * 
+   * @param {number} limit 
+   */
+  async list(limit) {
+    throw new Error('BaseProvider: list() not implemented.');
+  }
+
+  /**
    * Asynchronously logs an event object to the respective _manas_telemetry structure natively.
    * 
    * @param {Object} telemetryDoc
