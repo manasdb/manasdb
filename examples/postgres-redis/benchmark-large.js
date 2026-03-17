@@ -45,7 +45,7 @@ async function runBenchmark() {
     console.log(`[+] Initialized Redis cache tier (Tier 1).\n`);
 
     console.log(`[1] Absorbing Large Benchmark Document (${LARGE_ARTICLE.length} chars)...`);
-    const absorbRes = await db.absorb(LARGE_ARTICLE, { profile: 'accuracy' });
+    const absorbRes = await db.absorb(LARGE_ARTICLE, { });
     console.log(`    -> Chunks processed: ${absorbRes.inserted[0].chunksInserted}\n`);
 
     console.log(`[2] Waiting 2 seconds for Postgres Network Commit...`);
@@ -62,7 +62,7 @@ async function runBenchmark() {
         
         // Pass 1: Cold Cache (Triggers full context-healer JOIN in Postgres)
         const t0 = performance.now();
-        const res1 = await db.recall(query, { mode: 'document', limit: 3, profile: 'accuracy' });
+        const res1 = await db.recall(query, { mode: 'document', limit: 3 });
         const t1 = performance.now();
         const dbLatency = (t1 - t0).toFixed(2);
 
@@ -71,7 +71,7 @@ async function runBenchmark() {
 
         // Pass 2: Warm Cache (Instant Retrieval)
         const t2 = performance.now();
-        const res2 = await db.recall(query, { mode: 'document', limit: 3, profile: 'accuracy' });
+        const res2 = await db.recall(query, { mode: 'document', limit: 3 });
         const t3 = performance.now();
         const redisLatency = (t3 - t2).toFixed(2);
 
@@ -91,7 +91,7 @@ async function runBenchmark() {
     console.log(`\n[+] Example Verification for Q1:`);
     console.log(`    Question: "${QUERIES[0]}"`);
     
-    const finalRes = await db.recall(QUERIES[0], { mode: 'document', limit: 1, profile: 'accuracy' });
+    const finalRes = await db.recall(QUERIES[0], { mode: 'document', limit: 1 });
     const chunkText = finalRes[0]?.metadata?.matchedChunk || "N/A";
     console.log(`    Match Preview: "${chunkText.substring(0, 100)}..."\n`);
 

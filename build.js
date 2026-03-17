@@ -64,7 +64,14 @@ vm.Script = _PatchedScript;
 // ─── Load bytecode ───────────────────────────────────────────────────────────
 try {
   require('bytenode');
-  module.exports = require('./manasdb.jsc');
+  const pkg = require('./manasdb.jsc');
+  // Handle ES module default export vs CJS exports
+  const ManasDB = pkg.default || pkg;
+  // Ensure the class is the primary export
+  module.exports = ManasDB;
+  // Add self-referential properties to support both destructuring and default imports
+  module.exports.ManasDB = ManasDB;
+  module.exports.default = ManasDB;
 } catch (e) {
   if (e.code === 'ERR_REQUIRE_ESM') {
      console.error("ManasDB: To use compiled bytecode, ensure your application supports CommonJS requires.");
@@ -76,7 +83,7 @@ try {
 fs.writeFileSync('dist/index.cjs', loaderCode);
 
 // Optional: remove intermediate JS file to prevent plain-text exposure
-fs.unlinkSync('dist/manasdb.bundle.cjs');
+// fs.unlinkSync('dist/manasdb.bundle.cjs');
 
 console.log('✔️  Secure entry point created at dist/index.cjs');
 console.log('');

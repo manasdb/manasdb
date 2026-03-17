@@ -1,10 +1,10 @@
 # ManasDB System Flow Explained
 
-This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through **Plan 10**.
+This document describes the high-level operational execution flow of ManasDB internally. It acts as a clear roadmap mapping exactly how a memory traverses the codebase from initialization to persistence, vector mapping, security filtering, and telemetry. This covers the architecture achieved from Plan 1 through **Plan 14**.
 
 ---
 
-## 1. SDK Initialization & Cluster Connection (Plan 1, 4, 9, & 10)
+## 1. SDK Initialization & Cluster Connection (Plan 1, 4, 9, 10, & 14)
 
 When a developer sets up ManasDB in their application, three initialization modes are supported:
 
@@ -44,8 +44,20 @@ The SDK inspects the URI prefix (`mongodb://` / `postgres://`) to automatically 
    - If a required npm package is missing (e.g. `pg` not installed), a clear human-readable error is thrown: _"The 'pg' package is required for PostgreSQL. Run: `npm install pg`"_
 2. **Schema Bootstrap**: Each loaded provider runs its `init()` method — verifying `pgvector`, generating MongoDB vector indexes, etc.
 3. **Model Binding**: The SDK invokes `ModelFactory` under `src/core/providers` to map the embedding provider (OpenAI, Gemini, Ollama, Transformers).
+4. **Dimension Lock (Plan 14)**: The `init()` process fetches the database manifest. If stored embeddings have a different dimensionality than the current model, the system throws a `Model Mismatch` error to prevent index corruption.
 
 > **Strict Mode**: If `new ManasDB({})` was initialized without any URIs, `init()` successfully resolves with 0 databases to prevent a server crash. However, the exact moment the developer calls `absorb()` or `recall()`, the pipeline immediately halts and throws an explicit `MANASDB_ERROR` instead of failing silently.
+
+---
+
+### Sequence 1: Memory Ingestion (`absorb`)
+
+1.  **Budget Pre-Flight**: System calculates estimated token cost. If `actual_spend + estimated > budget_cap`, the request is rejected with a 402-style error.
+2.  **PII Shield Utility**: Sanitizes text nodes using deterministic regex/NER patterns.
+3.  **MemoryEngine (AI)**: Normalizes text and routes it to the embedding provider (OpenAI, Gemini, or local Transformers).
+4.  **Polyglot Broadcast**: The resulting vector + original text + tags are sent to the `ProviderFactory`.
+5.  **Database Drivers**: `MongoProvider` and `PostgresProvider` execute parallel inserts. MongoDB handles the full JSON metadata; Postgres utilizes `pgvector` for HNSW-indexed nearest neighbor search.
+6.  **Telemetry**: Execution time, provider success rates, and actual financial costs are logged to a dedicated telemetry collection/table.
 
 ---
 
@@ -135,3 +147,37 @@ Because standard logging mechanisms organically exist securely, we map the exter
 To add a new database type in the future, only two files need to change: `factory.js` (add registry entry) and `build.js` (add npm package to esbuild externals).
 
 See [PLAN_10_LAZY_PROVIDER_FACTORY.md](./PLAN_10_LAZY_PROVIDER_FACTORY.md) for full details.
+
+---
+
+## 6. Tiered Caching & Hierarchical Reasoning (Plan 11 & 12)
+
+### A. Two-Tier Semantic Cache (Plan 11)
+- **Tier 1 (External)**: Uses `RedisProvider` to share semantic hits across all server instances in a cluster. 
+- **Tier 2 (local)**: A fast In-Memory LRU cache for millisecond-speed local hits.
+- **Bypass**: Queries of 2 words or less automatically bypass the TCP cache overhead to ensure maximum speed.
+
+### B. TreeIndex Reasoning (Plan 12)
+- Implements `reasoningRecall()`. 
+- Documents are parsed into a **Hierarchical Node Tree** (`Document` → `Section` → `Leaf`).
+- Retrieval ranks best sections first, then fetches all associated leaf chunks to provide a broader, logical context block.
+
+---
+
+## 7. Enterprise Governance & Portability (Plan 14)
+
+### A. Budgeting & Financial Guardrails
+- **Pre-Flight Estimation**: `CostCalculator` estimates the USD cost of an operation before any external API calls are made.
+- **Hard Caps**: The `ManasDB` constructor accepts a `monthlyLimit`. If current spend + estimated cost exceeds the limit, the operation is blocked.
+- **Project Isolation**: Budgets are tracked per-project in the `_manas_telemetry` collection.
+
+### B. Multi-Tenancy (`ProjectRegistry`)
+- The `ProjectRegistry` utility manages multiple isolated `ManasDB` project instances within a single Node.js process.
+- Each project has its own `projectName` namespace and isolated database collections.
+
+### C. Data Migration & Re-Embedding
+- `migrateTo()` enables moving data from one provider (e.g., MongoDB) to another (e.g., PostgreSQL).
+- If switching models, the system automatically re-embeds text to maintain semantic integrity.
+
+### D. Programmatic Observability
+- The `onTrace()` hook allows developers to pipe internal decision logs (tokens used, latency, cache hits, provider sources) into their own production monitoring dashboards.

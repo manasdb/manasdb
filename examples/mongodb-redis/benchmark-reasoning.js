@@ -47,7 +47,7 @@ async function runBenchmark() {
     console.log(`[+] Initialized Redis cache tier (Tier 1).\n`);
 
     console.log(`[1] Absorbing Large Benchmark Document (${LARGE_ARTICLE.length} chars)...`);
-    const absorbRes = await db.absorb(LARGE_ARTICLE, { profile: 'accuracy' });
+    const absorbRes = await db.absorb(LARGE_ARTICLE, { });
     console.log(`    -> Chunks processed: ${absorbRes.chunks}\n`);
 
     console.log(`[2] Building Hierarchical Tree Index...`);
