@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import VectorNormalizer from '../utils/vector.js';
 import BaseProvider from './base.js';
 
 /**
@@ -22,7 +23,7 @@ class PostgresProvider extends BaseProvider {
     this.pool = null;
   }
 
-  async init() {
+  async init(targetDims) {
     const { Pool } = await import('pg');
     this.pool = new Pool({ connectionString: this.uri });
 
@@ -63,6 +64,7 @@ class PostgresProvider extends BaseProvider {
         project VARCHAR(255) NOT NULL,
         embedding_hash VARCHAR(64) NOT NULL,
         vec vector, -- Dynamically accept any dimension natively
+        magnitude NUMERIC,
         model VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -105,6 +107,8 @@ class PostgresProvider extends BaseProvider {
         ADD COLUMN IF NOT EXISTS saved_by_cache NUMERIC,
         ADD COLUMN IF NOT EXISTS sdk_version VARCHAR(50),
         ADD COLUMN IF NOT EXISTS node_version VARCHAR(50);
+
+      ALTER TABLE _manas_vectors ADD COLUMN IF NOT EXISTS magnitude NUMERIC;
       `);
     } catch(e) {}
 
@@ -194,14 +198,15 @@ class PostgresProvider extends BaseProvider {
         } else {
           // Generate Vector dynamically before routing down
           const { vector } = await aiProvider.embed(chunk.embedText, targetDims);
+          const normalizedVector = VectorNormalizer.normalize(vector);
           
           // Format vector for pgvector: '[0.1, 0.2, 0.3]'
-          const pgVectorString = `[${vector.join(',')}]`;
+          const pgVectorString = `[${normalizedVector.join(',')}]`;
 
           const insertVec = await client.query(
-             `INSERT INTO _manas_vectors (chunk_id, project, embedding_hash, vec, model)
-              VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-             [chunkId, this.projectName, embeddingHash, pgVectorString, aiProvider.getModelKey()]
+             `INSERT INTO _manas_vectors (chunk_id, project, embedding_hash, vec, magnitude, model)
+              VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+             [chunkId, this.projectName, embeddingHash, pgVectorString, 1.0, aiProvider.getModelKey()]
           );
           vectorIds.push(insertVec.rows[0].id);
         }
@@ -218,7 +223,8 @@ class PostgresProvider extends BaseProvider {
   }
 
   async vectorSearch({ queryVector, limit, minScore, aiModelName, mode = 'qa', includeVector = false }) {
-    const pgQueryVector = `[${queryVector.join(',')}]`;
+    const normalizedQuery = VectorNormalizer.normalize(queryVector);
+    const pgQueryVector = `[${normalizedQuery.join(',')}]`;
 
     // ── Context-Healer JOIN across the 3 new matching tables ────
     const sql = `

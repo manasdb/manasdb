@@ -101,6 +101,7 @@ ManasDB SDK  ←── Cache · Tree Reasoning · PII Shield · Telemetry · Bud
     └── Tier 2 In-Memory LRU (Semantic Cache)
     └── Budget Guardrails (Monthly USD Caps)
     └── Model Dimension Lock (Anti-Corruption)
+    └── Built-in Vector Normalization (Parity)
 ```
 
     ├── MongoDB Atlas  ($vectorSearch + full-text)

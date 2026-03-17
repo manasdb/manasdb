@@ -3,6 +3,7 @@ import MongoConnection from '../core/connection.js';
 import MemoryEngine from '../core/memory-engine.js';
 import CostCalculator from '../utils/CostCalculator.js';
 import Telemetry from '../utils/Telemetry.js';
+import VectorNormalizer from '../utils/vector.js';
 import BaseProvider from './base.js';
 
 /**
@@ -29,7 +30,7 @@ class MongoProvider extends BaseProvider {
     // but we can preserve basic Mongo specifics here if needed.
   }
 
-  async init(targetDims = 1536) {
+  async init(targetDims) {
     await MongoConnection.connect(this.uri, this.dbName);
     await MongoConnection.validateEnvironment();
 
@@ -152,12 +153,17 @@ class MongoProvider extends BaseProvider {
         isDeduplicated = true;
       } else {
         const { vector, dims, model, originalDims } = await aiProvider.embed(chunk.embedText, targetDims);
+        const normalizedVector = VectorNormalizer.normalize(vector);
         
         const upsertResult = await vectorsCollection.findOneAndUpdate(
           { embedding_hash },
           { $setOnInsert: {
               chunk_id, document_id, model, dims, profile: 'balanced', originalDims,
-              precision: 'float32', vector, vector_full: vector, embedding_hash,
+              precision: 'float32', 
+              vector: normalizedVector, 
+              vector_full: normalizedVector, 
+              magnitude: 1.0,
+              embedding_hash,
               createdAt: new Date(),
             }
           },
@@ -188,7 +194,7 @@ class MongoProvider extends BaseProvider {
           $vectorSearch: {
             index: indexName,
             path:  'vector',
-            queryVector,
+            queryVector: VectorNormalizer.normalize(queryVector),
             numCandidates: limit * 10,
             limit: limit * 2,
             filter: { model: aiModelName },

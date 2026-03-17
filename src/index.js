@@ -123,9 +123,24 @@ class ManasDB {
       this._initCalled = true;
     }
 
-    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
-    this.targetDims = targetDims;
     this.aiProvider = ModelFactory.getProvider(this.modelConfig);
+
+    // ── Dynamic Dimension Detection ──
+    let targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source);
+    
+    if (!targetDims) {
+      if (this.debug) console.log(`[ManasDB] Unknown model dimensions. Performing warm-up embedding to detect...`);
+      try {
+        const warmup = await this.aiProvider.embed('warmup');
+        targetDims = warmup.vector.length;
+        if (this.debug) console.log(`[ManasDB] Detected ${targetDims} dimensions for model: ${this.modelConfig.model || this.modelConfig.source}`);
+      } catch (e) {
+        if (this.debug) console.warn(`[ManasDB] Warm-up failed, falling back to 1536 dims.`, e.message);
+        targetDims = 1536;
+      }
+    }
+    
+    this.targetDims = targetDims;
 
     // Init all DB providers concurrently (schema creation, index checks, etc.)
     await this._withRetry(async () => {
@@ -311,7 +326,7 @@ class ManasDB {
     const extractedTags = MemoryEngine.extractTags(text);
     const parentTags = { ...extractedTags, ...(options.metadata || {}) };
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
-    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+    const targetDims = this.targetDims;
 
     // ── 3. DB Insertion (Concurrent Broadcast) ────
     const settlement = await this._withRetry(async () => {
@@ -394,7 +409,7 @@ class ManasDB {
 
     // ── 1. Embed query once ────
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
-    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+    const targetDims = this.targetDims;
 
     // Estimate tokens/cost for the Embedding Query execution
     const modelUsed = this.modelConfig.model || this.modelConfig.source;
@@ -674,7 +689,7 @@ class ManasDB {
 
     const { topSections = 5, topSection = 0 } = options;
     const aiProvider = ModelFactory.getProvider(this.modelConfig);
-    const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+    const targetDims = this.targetDims;
 
     const modelUsed = this.modelConfig.model || this.modelConfig.source;
     const tokens = CostCalculator.estimateTokens(query);
