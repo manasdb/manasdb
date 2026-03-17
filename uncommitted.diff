@@ -1,0 +1,376 @@
+diff --git a/src/index.js b/src/index.js
+index cc7b861..08454c4 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -124,6 +124,8 @@ class ManasDB {
+     }
+ 
+     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
++    this.targetDims = targetDims;
++    this.aiProvider = ModelFactory.getProvider(this.modelConfig);
+ 
+     // Init all DB providers concurrently (schema creation, index checks, etc.)
+     await this._withRetry(async () => {
+@@ -380,6 +382,7 @@ class ManasDB {
+ 
+   async recall(query, options = {}) {
+     if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before recall().');
++    console.error(`[CORE DEBUG] Recall initiated for query: "${query}"`);
+     if (this.databaseDrivers.length === 0) {
+       throw new Error("MANASDB_ERROR: Cannot recall(). No valid database providers were configured (e.g., missing MongoDB/Postgres URI).");
+     }
+@@ -407,6 +410,21 @@ class ManasDB {
+       }
+     }
+ 
++    const limit      = options.limit    ?? 5;
++    const minScore   = options.minScore ?? 0.05;
++
++    // ── 1.a Launch Keyword Search immediately (Parallel Path) ────
++    const keywordRetrieval = Promise.all(this.databaseDrivers.map(driver => 
++      driver.keywordSearch({ 
++        query, 
++        limit: limit * 2,
++        mode: options.mode || 'qa'
++      }).catch(err => {
++        if (this.debug) console.warn(`[ManasDB] Keyword search failed: ${err.message}`);
++        return [];
++      })
++    ));
++
+     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
+ 
+     // Short Query Bypass: Ultra-short queries have high collision rates and low DB execution cost.
+@@ -421,7 +439,7 @@ class ManasDB {
+         tokens, actual_cost: 0, savedByCache: costUSD,
+         retrievalPath: path, finalScore: hit[0]?.score || hit.score || 0,
+         retrievalMode: options.mode || 'qa', queryLengthBucket: queryBucket,
+-        chunkSizeUsed: options.limit || 5
++        chunkSizeUsed: limit
+       });
+     };
+ 
+@@ -458,74 +476,75 @@ class ManasDB {
+       }
+     }
+ 
+-    const limit      = options.limit    ?? 5;
+-    const minScore   = options.minScore ?? 0.05;
+     const lambda     = options.lambda   !== undefined ? options.lambda : 1.0;
+     const includeVector = lambda < 1.0;
+-    
+-    // ── 2. Vector Search Broadcast ────
+-    const promises = this.databaseDrivers.map(driver => 
++
++    // ── 2. Vector Search Retrieval ────
++    const vectorRetrieval = Promise.all(this.databaseDrivers.map(driver => 
+       driver.vectorSearch({
+         queryVector,
+-        limit: limit * 2, // Grab extras from each provider for deduplication
++        limit: limit * 2,
+         minScore,
+         aiModelName: aiProvider.getModelKey(),
+         mode: options.mode || 'qa',
+         includeVector
++      }).catch(err => {
++        if (this.debug) console.warn(`[ManasDB] Vector search failed: ${err.message}`);
++        return [];
+       })
+-    );
+-
+-    const settlement = await Promise.allSettled(promises);
+-    
+-    // Filter out failed provider queries
+-    const aggregatedResults = settlement
+-      .filter(s => s.status === 'fulfilled')
+-      .map(s => s.value);
+-    
+-    const searchErrors = settlement
+-      .filter(s => s.status === 'rejected')
+-      .map(s => s.reason.message);
+-
+-    if (aggregatedResults.length === 0 && this.databaseDrivers.length > 0) {
+-      if (this.debug) console.error(`[ManasDB] All database providers failed during recall: ${searchErrors.join(', ')}`);
+-      // We don't necessarily throw here to allow fallback to cache if it happened earlier, 
+-      // but if we are here, cache already missed.
+-    }
++    ));
+ 
+-    if (searchErrors.length > 0 && this.debug) {
+-      console.warn(`[ManasDB] Partial search failure: ${searchErrors.length} provider(s) failed.`);
+-    }
++    // Await both streams
++    const [keywordResultsPool, vectorResultsPool] = await Promise.all([
++      keywordRetrieval,
++      vectorRetrieval
++    ]);
+     
+-    // Flatten all responses into a single pool
+-    const flattenedRaw = aggregatedResults.flat();
+-
+-    // ── 3. Merge and Normalize ────
+-    // De-duplicate results across different databases hitting the identical chunk exact texts internally.
+-    // All provider scores MUST be in [0,1] (each provider normalizes before returning).
+-    // As a final defense clamp here too, so custom drivers can't break polyglot sort ordering.
+-    const clamp01 = v => Math.max(0, Math.min(1, typeof v === 'number' && !isNaN(v) ? v : 0));
+-    const uniquePool = new Map();
+-    for (const res of flattenedRaw) {
+-      const textHash = res.contentDetails[0]?.text || '';
+-      const safeScore = clamp01(res.score);
+-      // We prioritize exact text segments avoiding duplicating answers sent towards LLMs
+-      if (!uniquePool.has(textHash) || uniquePool.get(textHash).score < safeScore) {
+-        uniquePool.set(textHash, { ...res, score: safeScore });
+-      }
+-    }
++    // Flatten pools
++    const keywordResults = keywordResultsPool.flat();
++    const vectorResults = vectorResultsPool.flat();
++
++    // ── 3. Reciprocal Rank Fusion (RRF) ────
++    const rrfMap = new Map();
++    const K = 60; // RRF constant
++
++    const applyRRF = (results, weight) => {
++      results.forEach((res, index) => {
++        const text = res.contentDetails[0]?.text || '';
++        if (!text) return;
++        
++        if (!rrfMap.has(text)) {
++          rrfMap.set(text, { res, rrfScore: 0 });
++        }
++        
++        const entry = rrfMap.get(text);
++        entry.rrfScore += weight * (1 / (K + index + 1));
++      });
++    };
+ 
+-    let finalRanked = Array.from(uniquePool.values());
+-    finalRanked.sort((a, b) => b.score - a.score);
++    // Vector results usually have higher semantic value
++    applyRRF(vectorResults, 1.0);
++    // Keyword results are weighted slightly lower but help with exact matches
++    applyRRF(keywordResults, 0.5);
++
++    let mergedPool = Array.from(rrfMap.values())
++      .map(item => {
++        // Adjust score to be compatible with standard normalized scores [0,1]
++        // RRF scores are typically small, we'll use a heuristic for visualization
++        const normalizedRRF = Math.min(1, item.rrfScore * 10); 
++        item.res.score = normalizedRRF;
++        return item.res;
++      })
++      .sort((a, b) => b.score - a.score);
+ 
+-    // Apply MMR (Maximal Marginal Relevance) if lambda < 1.0
+-    if (lambda < 1.0 && finalRanked.length > 0) {
+-      finalRanked = this._applyMMR(finalRanked, limit, lambda);
++    // ── 4. Final Ranking & Formatting ────
++    if (lambda < 1.0 && mergedPool.length > 0) {
++      mergedPool = this._applyMMR(mergedPool, limit, lambda);
+     } else {
+-      finalRanked = finalRanked.slice(0, limit);
++      mergedPool = mergedPool.slice(0, limit);
+     }
+ 
+-    // Apply standard SearchFormatter to normalize polyglot outputs
+-    const finalResults = SearchFormatter.formatRecallResults(finalRanked);
++    const finalResults = SearchFormatter.formatRecallResults(mergedPool);
+ 
+     const dur = Telemetry.endTimer(timer);
+     Telemetry.logEvent('RECALL_POLYGLOT_COMPLETED', {
+@@ -533,25 +552,28 @@ class ManasDB {
+       durationMs: dur,
+       tokens,
+       actual_cost: costUSD,
+-      retrievalPath: isShortQuery ? 'db_bypass' : 'db_pipeline',
++      retrievalPath: 'hybrid_parallel',
+       finalScore: finalResults[0]?.score || 0,
+       retrievalMode: options.mode || 'qa',
+       queryLengthBucket: queryBucket,
+       chunkSizeUsed: limit
+     }, this.databaseDrivers);
+ 
+-    // Finalize trace object for deep inspection & UI
++    // Finalize trace object
+     finalResults._trace = {
+        query: queryVector,
+        nodes: finalResults,
+        tokens,
+        costUSD,
+        durationMs: dur,
+-       cacheHit: !!(options.cacheHit), // passed via helper
+-       rrfMerged: flattenedRaw.length
++       cacheHit: false,
++       hybridSources: {
++         keyword: keywordResults.length,
++         vector: vectorResults.length
++       }
+     };
+ 
+-    // ── In-Memory LRU cache storage (LFU/LRU bounded, Tier 2) ──
++    // ── 5. Cache Storage ────
+     if (!isShortQuery && finalResults.length > 0) {
+       this.semanticCacheIndex.set(queryHash, finalResults);
+       if (this.semanticCache.length >= 200) {
+@@ -561,14 +583,11 @@ class ManasDB {
+       }
+       this.semanticCache.push({ query, queryVector, results: finalResults });
+ 
+-      // ── Warm Redis Tier 1 cache with result ──
+-      // Fire-and-forget: cache errors never block the response
+       if (this._cacheProvider) {
+         this._cacheProvider.set(queryVector, finalResults).catch(() => {});
+       }
+     }
+ 
+-    // Finalize trace and emit
+     if (options.mode === 'qa' && this._traceListeners.length > 0) {
+       this._emitTrace(finalResults._trace);
+     }
+diff --git a/src/providers/base.js b/src/providers/base.js
+index abc178d..0f749d4 100644
+--- a/src/providers/base.js
++++ b/src/providers/base.js
+@@ -39,6 +39,18 @@ class BaseProvider {
+     throw new Error('BaseProvider: vectorSearch() not implemented.');
+   }
+ 
++  /**
++   * Recalls matching memories using keyword/text search.
++   * 
++   * @param {Object} params
++   * @param {string} params.query
++   * @param {number} params.limit
++   * @param {string} params.mode
++   */
++  async keywordSearch(params) {
++    throw new Error('BaseProvider: keywordSearch() not implemented.');
++  }
++
+   /**
+    * Deletes a parent document and all its associated child vectors.
+    * 
+diff --git a/src/providers/mongodb.js b/src/providers/mongodb.js
+index a8f2346..2d53d7a 100644
+--- a/src/providers/mongodb.js
++++ b/src/providers/mongodb.js
+@@ -340,6 +340,96 @@ class MongoProvider extends BaseProvider {
+     return healedParents.slice(0, limit);
+   }
+ 
++  /**
++   * Performs a keyword-based text search.
++   * Leverages MongoDB's $text index for rapid retrieval of exact matches.
++   */
++  async keywordSearch({ query, limit, mode = 'qa' }) {
++    const db = MongoConnection.getDb();
++    const chunksCollection = db.collection('_manas_chunks');
++
++    // MongoDB $text search returns scores based on keyword density
++    const pipeline = [
++      { 
++        $match: { 
++          $text: { $search: query },
++          project: this.projectName 
++        } 
++      },
++      { 
++        $project: { 
++          _id: 1, 
++          document_id: 1, 
++          text: 1, 
++          sectionTitle: 1, 
++          tags: 1,
++          score: { $meta: "textScore" } 
++        } 
++      },
++      { $sort: { score: { $meta: "textScore" } } },
++      { $limit: limit * (mode === 'document' ? 5 : 1) } // Fetch more if we need to aggregate
++    ];
++
++    const results = await chunksCollection.aggregate(pipeline).toArray();
++
++    if (mode === 'qa') {
++      return results.map(res => ({
++        database: 'mongodb',
++        chunk_id: res._id,
++        document_id: res.document_id,
++        score: normalizeScore(res.score / 10),
++        contentDetails: [{
++          text: res.text,
++          sectionTitle: res.sectionTitle || '',
++          tags: res.tags || []
++        }]
++      }));
++    }
++
++    // mode === 'document': Club chunks together by document_id
++    const parentIds = [...new Set(results.map(r => r.document_id.toString()))];
++    if (parentIds.length === 0) return [];
++
++    const { ObjectId } = await import('mongodb');
++    const parentObjectIds = parentIds.map(id => {
++      try { return new ObjectId(id); } catch(e) { return id; }
++    });
++
++    const allChunks = await chunksCollection
++      .find({ document_id: { $in: parentObjectIds } })
++      .sort({ chunk_index: 1 })
++      .toArray();
++
++    const docGroups = {};
++    for (const chunk of allChunks) {
++      const pid = chunk.document_id.toString();
++      if (!docGroups[pid]) docGroups[pid] = { chunks: [], tags: [] };
++      docGroups[pid].chunks.push(chunk.text);
++      if (chunk.tags) {
++        const t = Array.isArray(chunk.tags) ? chunk.tags : (chunk.tags.keywords || []);
++        docGroups[pid].tags.push(...t);
++      }
++    }
++
++    return parentObjectIds.map(oid => {
++      const pid = oid.toString();
++      const matchedRes = results.find(r => r.document_id.toString() === pid);
++      if (!matchedRes) return null;
++
++      return {
++        database: 'mongodb',
++        chunk_id: matchedRes._id,
++        document_id: oid,
++        score: normalizeScore(matchedRes.score / 10),
++        contentDetails: [{
++          text: (docGroups[pid]?.chunks || []).join(' '),
++          sectionTitle: matchedRes.sectionTitle || '',
++          tags: [...new Set(docGroups[pid]?.tags || [])]
++        }]
++      };
++    }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limit);
++  }
++
+   async delete(documentId) {
+     const db = MongoConnection.getDb();
+     const { ObjectId } = await import('mongodb');
+diff --git a/src/utils/ModelRegistry.js b/src/utils/ModelRegistry.js
+index e31e87b..2fe954e 100644
+--- a/src/utils/ModelRegistry.js
++++ b/src/utils/ModelRegistry.js
+@@ -7,6 +7,10 @@ export default class ModelRegistry {
+    * @returns {number|null}
+    */
+   static getDimensions(model) {
++    if (!model) return null;
++    // Strip version tags (e.g., "nomic-embed-text:latest" -> "nomic-embed-text")
++    const cleanModel = model.split(':')[0];
++
+     const mappings = {
+       'text-embedding-3-small': 1536,
+       'text-embedding-3-large': 3072,
+@@ -18,6 +22,6 @@ export default class ModelRegistry {
+       'transformers': 384
+     };
+ 
+-    return mappings[model] || null;
++    return mappings[cleanModel] || mappings[model] || null;
+   }
+ }

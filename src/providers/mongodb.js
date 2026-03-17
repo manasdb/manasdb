@@ -340,6 +340,96 @@ class MongoProvider extends BaseProvider {
     return healedParents.slice(0, limit);
   }
 
+  /**
+   * Performs a keyword-based text search.
+   * Leverages MongoDB's $text index for rapid retrieval of exact matches.
+   */
+  async keywordSearch({ query, limit, mode = 'qa' }) {
+    const db = MongoConnection.getDb();
+    const chunksCollection = db.collection('_manas_chunks');
+
+    // MongoDB $text search returns scores based on keyword density
+    const pipeline = [
+      { 
+        $match: { 
+          $text: { $search: query },
+          project: this.projectName 
+        } 
+      },
+      { 
+        $project: { 
+          _id: 1, 
+          document_id: 1, 
+          text: 1, 
+          sectionTitle: 1, 
+          tags: 1,
+          score: { $meta: "textScore" } 
+        } 
+      },
+      { $sort: { score: { $meta: "textScore" } } },
+      { $limit: limit * (mode === 'document' ? 5 : 1) } // Fetch more if we need to aggregate
+    ];
+
+    const results = await chunksCollection.aggregate(pipeline).toArray();
+
+    if (mode === 'qa') {
+      return results.map(res => ({
+        database: 'mongodb',
+        chunk_id: res._id,
+        document_id: res.document_id,
+        score: normalizeScore(res.score / 10),
+        contentDetails: [{
+          text: res.text,
+          sectionTitle: res.sectionTitle || '',
+          tags: res.tags || []
+        }]
+      }));
+    }
+
+    // mode === 'document': Club chunks together by document_id
+    const parentIds = [...new Set(results.map(r => r.document_id.toString()))];
+    if (parentIds.length === 0) return [];
+
+    const { ObjectId } = await import('mongodb');
+    const parentObjectIds = parentIds.map(id => {
+      try { return new ObjectId(id); } catch(e) { return id; }
+    });
+
+    const allChunks = await chunksCollection
+      .find({ document_id: { $in: parentObjectIds } })
+      .sort({ chunk_index: 1 })
+      .toArray();
+
+    const docGroups = {};
+    for (const chunk of allChunks) {
+      const pid = chunk.document_id.toString();
+      if (!docGroups[pid]) docGroups[pid] = { chunks: [], tags: [] };
+      docGroups[pid].chunks.push(chunk.text);
+      if (chunk.tags) {
+        const t = Array.isArray(chunk.tags) ? chunk.tags : (chunk.tags.keywords || []);
+        docGroups[pid].tags.push(...t);
+      }
+    }
+
+    return parentObjectIds.map(oid => {
+      const pid = oid.toString();
+      const matchedRes = results.find(r => r.document_id.toString() === pid);
+      if (!matchedRes) return null;
+
+      return {
+        database: 'mongodb',
+        chunk_id: matchedRes._id,
+        document_id: oid,
+        score: normalizeScore(matchedRes.score / 10),
+        contentDetails: [{
+          text: (docGroups[pid]?.chunks || []).join(' '),
+          sectionTitle: matchedRes.sectionTitle || '',
+          tags: [...new Set(docGroups[pid]?.tags || [])]
+        }]
+      };
+    }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, limit);
+  }
+
   async delete(documentId) {
     const db = MongoConnection.getDb();
     const { ObjectId } = await import('mongodb');

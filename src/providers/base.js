@@ -40,6 +40,18 @@ class BaseProvider {
   }
 
   /**
+   * Recalls matching memories using keyword/text search.
+   * 
+   * @param {Object} params
+   * @param {string} params.query
+   * @param {number} params.limit
+   * @param {string} params.mode
+   */
+  async keywordSearch(params) {
+    throw new Error('BaseProvider: keywordSearch() not implemented.');
+  }
+
+  /**
    * Deletes a parent document and all its associated child vectors.
    * 
    * @param {string|number} documentId 

@@ -57,6 +57,7 @@ console.log(result[0].metadata.matchedChunk);
 ## 🚀 Moving to Production
 
 While zero-config is great for prototypes, the **MemoryProvider** has limits:
+
 - **Volatility**: Data is lost on restart.
 - **Scale**: Performance degrades above 5,000 vectors.
 - **Deduplication**: SHA256-based (content-only).
@@ -64,9 +65,9 @@ While zero-config is great for prototypes, the **MemoryProvider** has limits:
 To move to production, simply provide a persistent database URI:
 
 ```javascript
-const memory = new ManasDB({ 
+const memory = new ManasDB({
   uri: process.env.MONGODB_URI,
-  retry: { attempts: 3, backoff: 1000 } // Recommended for prod
+  retry: { attempts: 3, backoff: 1000 }, // Recommended for prod
 });
 ```
 
@@ -101,9 +102,11 @@ ManasDB SDK  ←── Cache · Tree Reasoning · PII Shield · Telemetry · Bud
     └── Budget Guardrails (Monthly USD Caps)
     └── Model Dimension Lock (Anti-Corruption)
 ```
+
     ├── MongoDB Atlas  ($vectorSearch + full-text)
     └── PostgreSQL     (pgvector + tsvector)
-```
+
+````
 
 The result: **better accuracy, fewer services, lower cost, fully auditable pipelines** — without rewriting your application.
 
@@ -155,7 +158,7 @@ Give Claude Desktop or Cursor **permanent memory** across all conversations in 6
 
 ```bash
 npx @manasdb/mcp-server setup
-```
+````
 
 → See [@manasdb/mcp-server](https://github.com/manasdb/mcp-server) for full Claude Desktop + Cursor setup guide.
 
@@ -315,39 +318,36 @@ console.log(treeResult._trace);
 
 ## ✨ Features
 
-| Feature                                                         | Description                                                                                                                          |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Polyglot Broadcasting**                                       | Write once, synchronize automatically across multiple database providers (Postgres + Mongo).                                         |
-| **Governance**: Multi-tenant isolation via `ProjectRegistry` and strict `projectName` scoping.
-- **Budgeting**: Hard monthly spending caps and pre-flight cost estimation for every operation.
-- **Migration**: Effortless data migration between MongoDB and Postgres or switching embedding models.
-- **Observability**: Programmatic `onTrace()` callback for real-time retrieval monitoring.
-- **MMR Diversity**: Built-in Maximal Marginal Relevance to eliminate redundant search results.
+| **Governance & Portability** | ProjectRegistry for multi-tenancy, migrateTo() for provider/model switching, and monthly budget caps. |
+| **Observability** | Programmer hooks via onTrace() for production monitoring of tokens, costs, and retrieval internal decisions. |
+| **Hybrid Retrieval (RRF + MMR)** | Fuses Dense ANN vector search and Sparse keyword search via Reciprocal Rank Fusion, then diversified with MMR. |
 
 ---
 
 ## 🏗️ Core Architecture
 
 ### 1. Ingestion Flow (Absorb)
+
 When you call `absorb()`, ManasDB coordinates a multi-stage pipeline:
+
 1. **Budget Check**: Validates that the operation won't exceed your monthly spending cap.
 2. **PII Shield**: Detects and redacts sensitive data (Email, SSN, Credit Cards) before it reaches the AI.
 3. **Tokenization**: Estimates costs using a fast, local BPE-approximated tokenizer.
 4. **Polyglot Broadcast**: Parallel storage across MongoDB (best for scale) and PostgreSQL (best for relational queries).
-| **Hybrid Retrieval (RRF + MMR)**                                | Fuses Dense ANN vector search and Sparse keyword search via Reciprocal Rank Fusion, then diversifies with Maximal Marginal Relevance |
-| **Hierarchical Tree Reasoning**                                 | `reasoningRecall()` maps chunks into document > section > leaf nodes to enable ultra-precise retrieval over massive texts            |
-| **Sentinel Micro-Index**                                        | Dual-layer storage: chunk-level vectors for broad recall, sentence-level micro-vectors for sentence-level QA retrieval.              |
-| **Token-Aware Chunking**                                        | Replaces naive sentence splitting with dynamic token-budget sliding windows that respect section boundaries                          |
-| **Context Healing**                                             | Reconstructs full document context from chunks on-the-fly without duplicating text in MongoDB                                        |
-| **Two-Tier Semantic Cache**                                     | Tier 1: Shared Redis Cache across servers. Tier 2: In-Memory LRU. Both short-circuit the DB if query cosine ≥ 0.95.                  |
-| **Vector Quantization**                                         | `int8` and `float16` compression for ANN search; stores full `float32` for exact cosine reranking                                    |
-| **Adaptive Retrieval Routing**                                  | Automatically detects query intent (numeric / short factual / long conceptual) and adjusts dense/sparse weights                      |
-| **PII Shield**                                                  | Regex-based redaction of emails, phone numbers, SSNs, and custom patterns before any text leaves your server                         |
-| **Trace Debugging**                                             | Every `recall()` call emits a `_trace` object: cache hit, PII tokens scrubbed, candidate counts, fallback status, final score        |
-| **Cost Telemetry**                                              | Tracks tokens, financial cost, and latency savings from deduplication — viewable via `npx manas stats`                               |
-| **Lazy-Loaded Architecture**                                    | Storage and Cache dependencies (`pg`, `mongodb`, `ioredis`) are gracefully lazy-loaded on demand. 100% crash-free zero bloat.        |
-| **Custom Plugin Drivers**                                       | Pass any embedding driver via `modelConfig: { source: 'custom', driver: MyDriver }`                                                  |
-| **Optional source protection build for commercial deployments** | `npm run build` compiles source to V8 bytecode (`.jsc`) — source logic is obfuscated and compiled into V8 bytecode.                  |
+   | **Hybrid Retrieval (RRF + MMR)** | Fuses Dense ANN vector search and Sparse keyword search via Reciprocal Rank Fusion, then diversifies with Maximal Marginal Relevance |
+   | **Hierarchical Tree Reasoning** | `reasoningRecall()` maps chunks into document > section > leaf nodes to enable ultra-precise retrieval over massive texts |
+   | **Sentinel Micro-Index** | Dual-layer storage: chunk-level vectors for broad recall, sentence-level micro-vectors for sentence-level QA retrieval. |
+   | **Token-Aware Chunking** | Replaces naive sentence splitting with dynamic token-budget sliding windows that respect section boundaries |
+   | **Context Healing** | Reconstructs full document context from chunks on-the-fly without duplicating text in MongoDB |
+   | **Two-Tier Semantic Cache** | Tier 1: Shared Redis Cache across servers. Tier 2: In-Memory LRU. Both short-circuit the DB if query cosine ≥ 0.95. |
+   | **Vector Quantization** | `int8` and `float16` compression for ANN search; stores full `float32` for exact cosine reranking |
+   | **Adaptive Retrieval Routing** | Automatically detects query intent (numeric / short factual / long conceptual) and adjusts dense/sparse weights |
+   | **PII Shield** | Regex-based redaction of emails, phone numbers, SSNs, and custom patterns before any text leaves your server |
+   | **Trace Debugging** | Every `recall()` call emits a `_trace` object: cache hit, PII tokens scrubbed, candidate counts, fallback status, final score |
+   | **Cost Telemetry** | Tracks tokens, financial cost, and latency savings from deduplication — viewable via `npx manas stats` |
+   | **Lazy-Loaded Architecture** | Storage and Cache dependencies (`pg`, `mongodb`, `ioredis`) are gracefully lazy-loaded on demand. 100% crash-free zero bloat. |
+   | **Custom Plugin Drivers** | Pass any embedding driver via `modelConfig: { source: 'custom', driver: MyDriver }` |
+   | **Optional source protection build for commercial deployments** | `npm run build` compiles source to V8 bytecode (`.jsc`) — source logic is obfuscated and compiled into V8 bytecode. |
 
 ---
 
@@ -460,10 +460,10 @@ ManasDB is built for enterprises that need to control AI spend. You can set hard
 const memory = new ManasDB({
   uri: process.env.MONGODB_URI,
   retry: {
-    budget: { 
-      monthlyLimit: 10.00, // $10.00 USD hard cap
-    }
-  }
+    budget: {
+      monthlyLimit: 10.0, // $10.00 USD hard cap
+    },
+  },
 });
 
 // Pre-flight check: "How much will this cost before I embed it?"
@@ -478,7 +478,7 @@ Need to switch from MongoDB to Postgres? Or from OpenAI to a local model? ManasD
 ```javascript
 await memory.migrateTo({
   uri: process.env.POSTGRES_URI,
-  modelConfig: { source: "openai", model: "text-embedding-3-small" }
+  modelConfig: { source: "openai", model: "text-embedding-3-small" },
 });
 ```
 
@@ -488,30 +488,36 @@ Keep your database lean with automatic expiration and semantic deduplication.
 
 ```javascript
 // Remove memories older than 30 days
-await memory.expireOlderThan('30d');
+await memory.expireOlderThan("30d");
 
 // Prune semantic duplicates (threshold 0.95 similarity)
 await memory.dedup({ minSimilarity: 0.95 });
 ```
 
 ### `memory.init()`
+
 Initializes database connections and verifies the **Model Dimension Lock**.
+
 - If your existing data was embedded with 1536 dims and you try to init with a 384 dim model, ManasDB will block initialization to prevent corrupted results.
 
 ### `memory.absorb(text, options)`
+
 - `text`: String to be remembered.
 - `options.metadata`: Optional key-value tags.
 - `options.maxTokens`: Chunk size (default 100).
 - **Throws**: `Budget Exceeded` error if ingestion would surpass monthly limit.
 
 ### `memory.recall(query, options)`
+
 - `options.limit`: Number of results (default 5).
 - `options.lambda`: Diversity score (0.0 - 1.0). Default 1.0 (pure relevance).
 - `options.mode`: `'qa'` (returns `_trace`) or `'document'` (heals context).
 - **Returns**: `_trace` object containing tokens, cost, and retrieval duration.
 
 ### `memory.onTrace(callback)`
+
 Subscribe to internal decision logs programmatically.
+
 ```javascript
 memory.onTrace((trace) => {
   console.log("Retrieval Query:", trace.query);
@@ -520,7 +526,9 @@ memory.onTrace((trace) => {
 ```
 
 ### `memory.forgetMany(query)`
+
 GDPR-compliant erasure. Returns an audit object:
+
 ```javascript
 {
   deletedTotal: 15,
@@ -607,6 +615,7 @@ const result = await memory.reasoningRecall(
 ```
 
 ### `forget(documentId)`
+
 Alias for `delete(documentId)`. Erases the document and all associated chunks/vectors.
 
 ```javascript
@@ -614,6 +623,7 @@ await memory.forget("doc_123");
 ```
 
 ### `forgetMany(query)`
+
 Bulk erase documents matching metadata criteria. Returns an audit object.
 
 ```javascript
@@ -1051,6 +1061,8 @@ manasdb/
 
 ## 📋 Changelog
 
+**v0.4.2** — Budget Guardrails, Data Migration, ProjectRegistry (Multi-tenancy), Model Dimension Lock, and Zero-Config Bootstrap.
+**v0.4.1** — Added `package-lock.json` to `.gitignore`.
 **v0.4.0** — Telemetry on by default, expanded metrics (retrievalPath, finalScore, savedByCache, sdkVersion, nodeVersion), clearTelemetry() added as explicit method, 2-year TTL index on \_manas_telemetry, Redis Tier 1 caching, Hierarchical Tree Reasoning, benchmark suite, MCP server ([@manasdb/mcp-server](https://www.npmjs.com/package/@manasdb/mcp-server))  
 **v0.3.x** — Polyglot broadcasting, PII Shield, Sentinel Micro-Index  
 **v0.1-0.2** — Core hybrid retrieval, initial release

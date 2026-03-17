@@ -124,6 +124,8 @@ class ManasDB {
     }
 
     const targetDims = ModelRegistry.getDimensions(this.modelConfig.model || this.modelConfig.source) || 1536;
+    this.targetDims = targetDims;
+    this.aiProvider = ModelFactory.getProvider(this.modelConfig);
 
     // Init all DB providers concurrently (schema creation, index checks, etc.)
     await this._withRetry(async () => {
@@ -380,6 +382,7 @@ class ManasDB {
 
   async recall(query, options = {}) {
     if (!this._initCalled) throw new Error('MANASDB: Call await memory.init() before recall().');
+    console.error(`[CORE DEBUG] Recall initiated for query: "${query}"`);
     if (this.databaseDrivers.length === 0) {
       throw new Error("MANASDB_ERROR: Cannot recall(). No valid database providers were configured (e.g., missing MongoDB/Postgres URI).");
     }
@@ -407,6 +410,21 @@ class ManasDB {
       }
     }
 
+    const limit      = options.limit    ?? 5;
+    const minScore   = options.minScore ?? 0.05;
+
+    // ── 1.a Launch Keyword Search immediately (Parallel Path) ────
+    const keywordRetrieval = Promise.all(this.databaseDrivers.map(driver => 
+      driver.keywordSearch({ 
+        query, 
+        limit: limit * 2,
+        mode: options.mode || 'qa'
+      }).catch(err => {
+        if (this.debug) console.warn(`[ManasDB] Keyword search failed: ${err.message}`);
+        return [];
+      })
+    ));
+
     const { vector: queryVector } = await aiProvider.embed(query, targetDims);
 
     // Short Query Bypass: Ultra-short queries have high collision rates and low DB execution cost.
@@ -421,7 +439,7 @@ class ManasDB {
         tokens, actual_cost: 0, savedByCache: costUSD,
         retrievalPath: path, finalScore: hit[0]?.score || hit.score || 0,
         retrievalMode: options.mode || 'qa', queryLengthBucket: queryBucket,
-        chunkSizeUsed: options.limit || 5
+        chunkSizeUsed: limit
       });
     };
 
@@ -458,74 +476,75 @@ class ManasDB {
       }
     }
 
-    const limit      = options.limit    ?? 5;
-    const minScore   = options.minScore ?? 0.05;
     const lambda     = options.lambda   !== undefined ? options.lambda : 1.0;
     const includeVector = lambda < 1.0;
-    
-    // ── 2. Vector Search Broadcast ────
-    const promises = this.databaseDrivers.map(driver => 
+
+    // ── 2. Vector Search Retrieval ────
+    const vectorRetrieval = Promise.all(this.databaseDrivers.map(driver => 
       driver.vectorSearch({
         queryVector,
-        limit: limit * 2, // Grab extras from each provider for deduplication
+        limit: limit * 2,
         minScore,
         aiModelName: aiProvider.getModelKey(),
         mode: options.mode || 'qa',
         includeVector
+      }).catch(err => {
+        if (this.debug) console.warn(`[ManasDB] Vector search failed: ${err.message}`);
+        return [];
       })
-    );
+    ));
 
-    const settlement = await Promise.allSettled(promises);
+    // Await both streams
+    const [keywordResultsPool, vectorResultsPool] = await Promise.all([
+      keywordRetrieval,
+      vectorRetrieval
+    ]);
     
-    // Filter out failed provider queries
-    const aggregatedResults = settlement
-      .filter(s => s.status === 'fulfilled')
-      .map(s => s.value);
-    
-    const searchErrors = settlement
-      .filter(s => s.status === 'rejected')
-      .map(s => s.reason.message);
+    // Flatten pools
+    const keywordResults = keywordResultsPool.flat();
+    const vectorResults = vectorResultsPool.flat();
 
-    if (aggregatedResults.length === 0 && this.databaseDrivers.length > 0) {
-      if (this.debug) console.error(`[ManasDB] All database providers failed during recall: ${searchErrors.join(', ')}`);
-      // We don't necessarily throw here to allow fallback to cache if it happened earlier, 
-      // but if we are here, cache already missed.
-    }
+    // ── 3. Reciprocal Rank Fusion (RRF) ────
+    const rrfMap = new Map();
+    const K = 60; // RRF constant
 
-    if (searchErrors.length > 0 && this.debug) {
-      console.warn(`[ManasDB] Partial search failure: ${searchErrors.length} provider(s) failed.`);
-    }
-    
-    // Flatten all responses into a single pool
-    const flattenedRaw = aggregatedResults.flat();
+    const applyRRF = (results, weight) => {
+      results.forEach((res, index) => {
+        const text = res.contentDetails[0]?.text || '';
+        if (!text) return;
+        
+        if (!rrfMap.has(text)) {
+          rrfMap.set(text, { res, rrfScore: 0 });
+        }
+        
+        const entry = rrfMap.get(text);
+        entry.rrfScore += weight * (1 / (K + index + 1));
+      });
+    };
 
-    // ── 3. Merge and Normalize ────
-    // De-duplicate results across different databases hitting the identical chunk exact texts internally.
-    // All provider scores MUST be in [0,1] (each provider normalizes before returning).
-    // As a final defense clamp here too, so custom drivers can't break polyglot sort ordering.
-    const clamp01 = v => Math.max(0, Math.min(1, typeof v === 'number' && !isNaN(v) ? v : 0));
-    const uniquePool = new Map();
-    for (const res of flattenedRaw) {
-      const textHash = res.contentDetails[0]?.text || '';
-      const safeScore = clamp01(res.score);
-      // We prioritize exact text segments avoiding duplicating answers sent towards LLMs
-      if (!uniquePool.has(textHash) || uniquePool.get(textHash).score < safeScore) {
-        uniquePool.set(textHash, { ...res, score: safeScore });
-      }
-    }
+    // Vector results usually have higher semantic value
+    applyRRF(vectorResults, 1.0);
+    // Keyword results are weighted slightly lower but help with exact matches
+    applyRRF(keywordResults, 0.5);
 
-    let finalRanked = Array.from(uniquePool.values());
-    finalRanked.sort((a, b) => b.score - a.score);
+    let mergedPool = Array.from(rrfMap.values())
+      .map(item => {
+        // Adjust score to be compatible with standard normalized scores [0,1]
+        // RRF scores are typically small, we'll use a heuristic for visualization
+        const normalizedRRF = Math.min(1, item.rrfScore * 10); 
+        item.res.score = normalizedRRF;
+        return item.res;
+      })
+      .sort((a, b) => b.score - a.score);
 
-    // Apply MMR (Maximal Marginal Relevance) if lambda < 1.0
-    if (lambda < 1.0 && finalRanked.length > 0) {
-      finalRanked = this._applyMMR(finalRanked, limit, lambda);
+    // ── 4. Final Ranking & Formatting ────
+    if (lambda < 1.0 && mergedPool.length > 0) {
+      mergedPool = this._applyMMR(mergedPool, limit, lambda);
     } else {
-      finalRanked = finalRanked.slice(0, limit);
+      mergedPool = mergedPool.slice(0, limit);
     }
 
-    // Apply standard SearchFormatter to normalize polyglot outputs
-    const finalResults = SearchFormatter.formatRecallResults(finalRanked);
+    const finalResults = SearchFormatter.formatRecallResults(mergedPool);
 
     const dur = Telemetry.endTimer(timer);
     Telemetry.logEvent('RECALL_POLYGLOT_COMPLETED', {
@@ -533,25 +552,28 @@ class ManasDB {
       durationMs: dur,
       tokens,
       actual_cost: costUSD,
-      retrievalPath: isShortQuery ? 'db_bypass' : 'db_pipeline',
+      retrievalPath: 'hybrid_parallel',
       finalScore: finalResults[0]?.score || 0,
       retrievalMode: options.mode || 'qa',
       queryLengthBucket: queryBucket,
       chunkSizeUsed: limit
     }, this.databaseDrivers);
 
-    // Finalize trace object for deep inspection & UI
+    // Finalize trace object
     finalResults._trace = {
        query: queryVector,
        nodes: finalResults,
        tokens,
        costUSD,
        durationMs: dur,
-       cacheHit: !!(options.cacheHit), // passed via helper
-       rrfMerged: flattenedRaw.length
+       cacheHit: false,
+       hybridSources: {
+         keyword: keywordResults.length,
+         vector: vectorResults.length
+       }
     };
 
-    // ── In-Memory LRU cache storage (LFU/LRU bounded, Tier 2) ──
+    // ── 5. Cache Storage ────
     if (!isShortQuery && finalResults.length > 0) {
       this.semanticCacheIndex.set(queryHash, finalResults);
       if (this.semanticCache.length >= 200) {
@@ -561,14 +583,11 @@ class ManasDB {
       }
       this.semanticCache.push({ query, queryVector, results: finalResults });
 
-      // ── Warm Redis Tier 1 cache with result ──
-      // Fire-and-forget: cache errors never block the response
       if (this._cacheProvider) {
         this._cacheProvider.set(queryVector, finalResults).catch(() => {});
       }
     }
 
-    // Finalize trace and emit
     if (options.mode === 'qa' && this._traceListeners.length > 0) {
       this._emitTrace(finalResults._trace);
     }

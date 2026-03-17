@@ -15,6 +15,7 @@
 - **Seamless Migration**: Move your data from MongoDB to Postgres or swap embedding models with a single command.
 - **Semantic Pruning**: Bulk deduplication tools to clean up noisy datasets and redundant memories.
 - **Observability Hooks**: Subscribe to internal decision traces programmatically for real-time monitoring.
+- **Multi-Tenancy Utility**: Introduced `ProjectRegistry` for managing isolated project instances lazily.
 
 ### Robustness & Reliability
 
