@@ -48,6 +48,24 @@ class CostCalculator {
     static calculateProjectedAnnual(monthlySavings) {
         return monthlySavings * 12;
     }
+
+    /**
+     * Pre-flight estimation for absorb().
+     */
+    static estimateAbsorbCost(text, model) {
+        const tokens = this.estimateTokens(text);
+        const cost = this.calculate(tokens, model);
+        return { tokens, costUSD: cost, model };
+    }
+
+    /**
+     * Pre-flight estimation for recall().
+     */
+    static estimateRecallCost(query, model) {
+        const tokens = this.estimateTokens(query);
+        const cost = this.calculate(tokens, model);
+        return { tokens, costUSD: cost, model };
+    }
 }
 
 export default CostCalculator;

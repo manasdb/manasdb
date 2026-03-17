@@ -7,6 +7,10 @@ export default class ModelRegistry {
    * @returns {number|null}
    */
   static getDimensions(model) {
+    if (!model) return null;
+    // Strip version tags (e.g., "nomic-embed-text:latest" -> "nomic-embed-text")
+    const cleanModel = model.split(':')[0];
+
     const mappings = {
       'text-embedding-3-small': 1536,
       'text-embedding-3-large': 3072,
@@ -18,6 +22,6 @@ export default class ModelRegistry {
       'transformers': 384
     };
 
-    return mappings[model] || null;
+    return mappings[cleanModel] || mappings[model] || null;
   }
 }

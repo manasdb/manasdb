@@ -13,6 +13,7 @@
 import MongoProvider    from './mongodb.js';
 import PostgresProvider from './postgres.js';
 import RedisProvider    from './redis.js';
+import MemoryProvider   from './memory.js';
 
 // ── URI auto-detection ────────────────────────────────────────────────────────
 /**
@@ -21,9 +22,11 @@ import RedisProvider    from './redis.js';
  * @returns {'postgres'|'mongodb'|'redis'}
  */
 export function inferTypeFromUri(uri = '') {
+    if (!uri) return 'memory';
     const l = uri.toLowerCase();
     if (l.startsWith('postgres') || l.startsWith('postgresql')) return 'postgres';
     if (l.startsWith('redis'))                                    return 'redis';
+    if (l.startsWith('memory:'))                                  return 'memory';
     return 'mongodb';
 }
 
@@ -33,6 +36,7 @@ const PROVIDER_REGISTRY = {
     postgres:   PostgresProvider,
     pg:         PostgresProvider,
     postgresql: PostgresProvider,
+    memory:     MemoryProvider,
 };
 
 // ── Public API — Storage Providers ───────────────────────────────────────────
