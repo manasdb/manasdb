@@ -458,23 +458,14 @@ class ManasDB {
       });
     };
 
-    // ── 1.a Tier 1: Redis Semantic Cache ──────────────────────────────────────
-    // Check Redis BEFORE in-memory LRU — Redis is shared across server instances.
-    if (!isShortQuery && this._cacheProvider) {
-      const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
-      if (redisHit) {
-        redisHit._trace = { cacheHit: 'redis', tokens, costUSD };
-        logCacheTelemetry('redis_tier1', redisHit);
-        return redisHit;
-      }
-    }
-
     const queryHash = crypto.createHash('sha256').update(query).digest('hex');
 
-    // ── 1.b Tier 2: In-Memory LRU Cache ──────────────────────────────────────
+    // ── 1.a Tier 1: In-Memory LRU Cache ──────────────────────────────────────
+    // L1 Cache: Zero network latency, per-instance.
     if (!isShortQuery && this.semanticCacheIndex.has(queryHash)) {
       const cached = [...this.semanticCacheIndex.get(queryHash)];
-      logCacheTelemetry('lru_tier2', cached);
+      cached._trace = { cacheHit: 'memory_exact', tokens, costUSD };
+      logCacheTelemetry('lru_tier1', cached);
       return cached;
     }
 
@@ -485,9 +476,20 @@ class ManasDB {
         if (MemoryEngine._cosine(queryVector, entry.queryVector) > 0.95) {
           const cached = [...entry.results]; // Clone array
           cached._trace = { cacheHit: 'memory', tokens, costUSD };
-          logCacheTelemetry('lru_tier2_fuzzy', cached);
+          logCacheTelemetry('lru_tier1_fuzzy', cached);
           return cached;
         }
+      }
+    }
+
+    // ── 1.b Tier 2: Redis Semantic Cache ──────────────────────────────────────
+    // L2 Cache: Low network latency, shared across all cluster instances.
+    if (!isShortQuery && this._cacheProvider) {
+      const redisHit = await this._cacheProvider.getSemanticMatch(queryVector);
+      if (redisHit) {
+        redisHit._trace = { cacheHit: 'redis', tokens, costUSD };
+        logCacheTelemetry('redis_tier2', redisHit);
+        return redisHit;
       }
     }
 

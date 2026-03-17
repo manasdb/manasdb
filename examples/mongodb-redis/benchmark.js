@@ -11,7 +11,7 @@ Semantic memory systems that power RAG, such as ManasDB, rely on embedding model
 
 async function runBenchmark() {
     console.log("=====================================================");
-    console.log(" MANASDB: MONGODB + REDIS CACHE LATENCY BENCHMARK");
+    console.log(" MANASDB: MULTI-TIER LATENCY BENCHMARK");
     console.log("=====================================================\n");
 
     const projectName = 'benchmark_' + Date.now();
@@ -32,7 +32,8 @@ async function runBenchmark() {
 
     await db.init();
     console.log(`[+] Initialized MongoDB connection.`);
-    console.log(`[+] Initialized Redis cache tier (Tier 1).\n`);
+    console.log(`[+] Initialized Redis cache tier (Tier 1).`);
+    console.log(`[+] Initialized In-Memory LRU tier (Tier 2).\n`);
 
     // 2. Absorb Text
     console.log(`[1] Absorbing Benchmark Document...`);
@@ -52,8 +53,7 @@ async function runBenchmark() {
     const t0 = performance.now();
     const res1 = await db.recall(query, { limit: 1 });
     const t1 = performance.now();
-    
-    const dbLatency = (t1 - t0).toFixed(2);
+    const dbLatency = (t1 - t0);
     const dbHit = res1._trace.cacheHit === false ? 'MongoDB (Vector Search)' : 'Unknown';
 
     // Wait slightly to let async Redis set() finish in the background
@@ -63,27 +63,39 @@ async function runBenchmark() {
     const t2 = performance.now();
     const res2 = await db.recall(query, { limit: 1 });
     const t3 = performance.now();
-
-    const redisLatency = (t3 - t2).toFixed(2);
+    const redisLatency = (t3 - t2);
     const redisHit = res2._trace.cacheHit === 'redis' ? 'Redis (Tier 1)' : 'Cache Miss';
 
+    // Pass 3: Hot Cache (Hits In-Memory LRU)
+    const t4 = performance.now();
+    const res3 = await db.recall(query, { limit: 1 });
+    const t5 = performance.now();
+    const lruLatency = (t5 - t4);
+    const lruHit = (res3._trace.cacheHit === 'memory_exact' || res3._trace.cacheHit === 'memory') ? 'In-Memory (Tier 2)' : 'Cache Miss';
+
     // 5. Calculate Speedup
-    const speedupMult = (dbLatency / redisLatency).toFixed(1);
-    const speedupPct = (((dbLatency - redisLatency) / dbLatency) * 100).toFixed(1);
+    const redisSpeedup = (dbLatency / redisLatency).toFixed(1);
+    const lruSpeedup   = (dbLatency / lruLatency).toFixed(1);
 
     // 6. Output Table
     const tableData = [
         { 
+            "Tier": "Cold (No Cache)",
             "Data Source": dbHit, 
-            "Semantic Hit": "No (Cache Miss)", 
-            "Latency (ms)": `${dbLatency}ms`,
+            "Latency (ms)": `${dbLatency.toFixed(2)}ms`,
             "Improvement": "-"
         },
         { 
+            "Tier": "Tier 1 (Semantic)",
             "Data Source": redisHit, 
-            "Semantic Hit": "Yes (Cosine >= 0.92)", 
-            "Latency (ms)": `${redisLatency}ms`,
-            "Improvement": `${speedupMult}x Faster (${speedupPct}%)`
+            "Latency (ms)": `${redisLatency.toFixed(2)}ms`,
+            "Improvement": `${redisSpeedup}x Faster`
+        },
+        { 
+            "Tier": "Tier 2 (LRU)",
+            "Data Source": lruHit, 
+            "Latency (ms)": `${lruLatency.toFixed(2)}ms`,
+            "Improvement": `${lruSpeedup}x Faster`
         }
     ];
 

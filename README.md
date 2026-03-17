@@ -122,7 +122,7 @@ The result: **better accuracy, fewer services, lower cost, fully auditable pipel
 | Data privacy     | Sends to their cloud | Stays on your server ✅        |
 | MCP native       | Partial              | ✅ Working today               |
 | Hybrid search    | Limited              | ✅ RRF + MMR built-in          |
-| Redis caching    | ✗                    | ✅ 29x faster repeated queries |
+| Redis caching    | ✗                    | ✅ Up to 50x+ faster repeated queries |
 | Tree Reasoning   | ✗                    | ✅ Native reasoningRecall()    |
 | PII protection   | ✗                    | ✅ Built-in per-field          |
 | Trace debugging  | ✗                    | ✅ Every recall()              |
