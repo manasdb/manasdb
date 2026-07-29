@@ -1049,13 +1049,8 @@ manasdb/
 
 ## 🗺️ Roadmap
 
-### v0.5 (Coming soon)
-
-- [ ] Native TypeScript typings package (`@manasdb/types`)
+### Coming soon
 - [ ] Elasticsearch adapter
-
-### v0.6 (Coming soon)
-
 - [ ] `npx manas ui` — web dashboard for trace visualization
 - [ ] MySQL + DynamoDB adapters
 
@@ -1063,11 +1058,17 @@ manasdb/
 
 ## 📋 Changelog
 
-**v0.4.2** — Budget Guardrails, Data Migration, ProjectRegistry (Multi-tenancy), Model Dimension Lock, and Zero-Config Bootstrap.
-**v0.4.1** — Added `package-lock.json` to `.gitignore`.
+**v0.5.0** — Finalized 100% native TypeScript migration, compiled CLI via esbuild, unified npm scripts with `tsx`.  
+**v0.4.7** — Fully removed legacy JS files, shipped native `.d.ts` types, and added Storage Viewer CLI.  
+**v0.4.6** — TypeScript Migration Phase 4 (Orchestration, CLI, AI Providers).  
+**v0.4.5** — TypeScript Migration Phase 3 (Storage Providers).  
+**v0.4.4** — TypeScript Migration Phase 2 (Core Internals).  
+**v0.4.3** — TypeScript Migration Phase 1 (Utilities and Core Types).  
+**v0.4.2** — Budget Guardrails, Data Migration, ProjectRegistry (Multi-tenancy), Model Dimension Lock, and Zero-Config Bootstrap.  
+**v0.4.1** — Added `package-lock.json` to `.gitignore`.  
 **v0.4.0** — Telemetry on by default, expanded metrics (retrievalPath, finalScore, savedByCache, sdkVersion, nodeVersion), clearTelemetry() added as explicit method, 2-year TTL index on \_manas_telemetry, Redis Tier 1 caching, Hierarchical Tree Reasoning, benchmark suite, MCP server ([@manasdb/mcp-server](https://www.npmjs.com/package/@manasdb/mcp-server))  
 **v0.3.x** — Polyglot broadcasting, PII Shield, Sentinel Micro-Index  
-**v0.1-0.2** — Core hybrid retrieval, initial release
+**v0.1-0.2** — Core hybrid retrieval, initial release  
 
 ---
 
