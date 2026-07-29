@@ -388,8 +388,13 @@ export class PostgresProvider extends BaseProvider {
        WHERE project = $1 AND created_at >= $2`,
       [this.projectName, startOfMonth]
     );
-    
     return parseFloat(res.rows[0].total || 0);
+  }
+
+  async close(): Promise<void> {
+    if (this.pool && typeof this.pool.end === 'function') {
+      await this.pool.end();
+    }
   }
 }
 
