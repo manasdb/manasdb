@@ -1,11 +1,11 @@
 {
   "name": "@manasdb/core",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "description": "The memory layer for AI applications — hybrid RAG retrieval, PII shield, polyglot storage",
   "main": "dist/index.cjs",
   "exports": {
     ".": "./dist/index.cjs",
-    "./src": "./src/index.js"
+    "./src": "./src/index.ts"
   },
   "type": "module",
   "author": "ManasDB Contributors",
@@ -66,7 +66,7 @@
     "url": "https://razorpay.me/@manasdb"
   },
   "bin": {
-    "manas": "./bin/manas.js"
+    "manas": "./dist/manas.cjs"
   },
   "scripts": {
     "test:random": "node tests/test-large-random.ts",

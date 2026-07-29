@@ -1,4 +1,4 @@
-import ManasDB from '../index.js';
+import ManasDB from '../index.ts';
 import type { ManasDBConfig, AbsorbOptions } from '../types/index.ts';
 
 /**

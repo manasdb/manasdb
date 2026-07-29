@@ -1,4 +1,4 @@
-import MongoConnection from '../core/connection.js';
+import MongoConnection from '../core/connection.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';

@@ -64,10 +64,22 @@ try {
 
 fs.writeFileSync('dist/index.cjs', loaderCode);
 
-console.log('✔️  Secure entry point created at dist/index.cjs');
-console.log('');
+console.log('✔️  Secure entry point created at dist/index.cjs\n');
+
+// Also build the CLI tool
+await esbuild.build({
+  entryPoints: ['bin/manas.ts'],
+  bundle: true,
+  outfile: 'dist/manas.cjs',
+  format: 'cjs',
+  platform: 'node',
+  external: PROVIDER_EXTERNALS,
+  minify: true
+});
+console.log('✔️  CLI bundled and minified to dist/manas.cjs\n');
+
 console.log('=====================================================');
 console.log('COMPILATION COMPLETE');
 console.log('=====================================================');
 console.log('Your SDK has been successfully compiled into Node.js Machine Bytecode!');
-console.log('It is now strictly protected from Reverse Engineering.');
+console.log('It is now strictly protected from Reverse Engineering.\n');

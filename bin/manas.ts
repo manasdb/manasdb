@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name('manas')
   .description('CLI Management Tool for ManasDB Vector Stores')
-  .version('0.4.6');
+  .version('0.5.0');
 
 function getUri(): string {
     const uri = process.env.MONGODB_URI;

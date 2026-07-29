@@ -1,4 +1,4 @@
-import MemoryEngine from './memory-engine.js';
+import MemoryEngine from './memory-engine.ts';
 
 export interface TreeSectionNode {
   sectionId: string;

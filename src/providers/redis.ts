@@ -1,4 +1,4 @@
-import MemoryEngine from '../core/memory-engine.js';
+import MemoryEngine from '../core/memory-engine.ts';
 
 export class RedisProvider {
   public uri: string;
