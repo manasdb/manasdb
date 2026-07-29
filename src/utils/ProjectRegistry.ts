@@ -1,5 +1,5 @@
 import ManasDB from '../index.js';
-import { ManasDBConfig, AbsorbOptions } from '../types/index.ts';
+import type { ManasDBConfig, AbsorbOptions } from '../types/index.ts';
 
 /**
  * ProjectRegistry
