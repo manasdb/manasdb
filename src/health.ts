@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import MongoConnection from './core/connection.js';
+import MongoConnection from './core/connection.ts';
 
 dotenv.config();
 

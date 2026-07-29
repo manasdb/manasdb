@@ -1,6 +1,6 @@
 import BaseProvider from './base.ts';
 import type { InsertParams, VectorSearchParams } from './base.ts';
-import MemoryEngine from '../core/memory-engine.js';
+import MemoryEngine from '../core/memory-engine.ts';
 import crypto from 'crypto';
 
 export interface MemoryDocument {

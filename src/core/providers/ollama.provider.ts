@@ -1,5 +1,6 @@
 import { Ollama } from 'ollama';
-import BaseProvider, { EmbedResult } from './base.provider.ts';
+import BaseProvider from './base.provider.ts';
+import type { EmbedResult } from './base.provider.ts';
 
 export default class OllamaProvider extends BaseProvider {
   public model: string;

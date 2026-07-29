@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import VectorNormalizer from '../utils/vector.js';
+import VectorNormalizer from '../utils/vector.ts';
 import BaseProvider from './base.ts';
 import type { InsertParams, VectorSearchParams } from './base.ts';
 

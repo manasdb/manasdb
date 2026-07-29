@@ -1,6 +1,6 @@
-import TransformersProvider from './providers/transformers.provider.js';
-import OllamaProvider from './providers/ollama.provider.js';
-import { OpenAIProvider, GeminiProvider } from './providers/cloud.provider.js';
+import TransformersProvider from './providers/transformers.provider.ts';
+import OllamaProvider from './providers/ollama.provider.ts';
+import { OpenAIProvider, GeminiProvider } from './providers/cloud.provider.ts';
 import type { ModelConfig } from '../types/index.ts';
 
 export class ModelFactory {

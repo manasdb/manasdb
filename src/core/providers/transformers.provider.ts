@@ -1,5 +1,6 @@
 import { pipeline } from '@xenova/transformers';
-import BaseProvider, { EmbedResult } from './base.provider.ts';
+import BaseProvider from './base.provider.ts';
+import type { EmbedResult } from './base.provider.ts';
 
 export default class TransformersProvider extends BaseProvider {
   private extractorPipeline: any = null;

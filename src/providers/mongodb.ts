@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import MongoConnection from '../core/connection.js';
-import MemoryEngine from '../core/memory-engine.js';
-import VectorNormalizer from '../utils/vector.js';
+import MongoConnection from '../core/connection.ts';
+import MemoryEngine from '../core/memory-engine.ts';
+import VectorNormalizer from '../utils/vector.ts';
 import BaseProvider from './base.ts';
 import type { InsertParams, VectorSearchParams, KeywordSearchParams } from './base.ts';
 

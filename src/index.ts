@@ -1,13 +1,13 @@
-import MemoryEngine from './core/memory-engine.js';
-import ModelFactory from './core/model-factory.js';
-import SearchFormatter from './utils/SearchFormatter.js';
-import PIIFilter from './utils/PIIFilter.js';
-import Telemetry from './utils/Telemetry.js';
-import CostCalculator from './utils/CostCalculator.js';
-import ModelRegistry from './utils/ModelRegistry.js';
-import TreeIndex from './core/tree-index.js';
+import MemoryEngine from './core/memory-engine.ts';
+import ModelFactory from './core/model-factory.ts';
+import SearchFormatter from './utils/SearchFormatter.ts';
+import PIIFilter from './utils/PIIFilter.ts';
+import Telemetry from './utils/Telemetry.ts';
+import CostCalculator from './utils/CostCalculator.ts';
+import ModelRegistry from './utils/ModelRegistry.ts';
+import TreeIndex from './core/tree-index.ts';
 import crypto from 'crypto';
-import { createProviders, createCacheProvider, inferTypeFromUri } from './providers/factory.js';
+import { createProviders, createCacheProvider, inferTypeFromUri } from './providers/factory.ts';
 import type { ManasDBConfig, AbsorbOptions, RecallOptions, PIIShieldConfig, ModelConfig } from './types/index.ts';
 
 export class ManasDB {
@@ -176,7 +176,7 @@ export class ManasDB {
     const primary = this.databaseDrivers[0];
     if (!primary) throw new Error("No source database linked for migration.");
 
-    const db = (primary.uri && primary.uri.startsWith('mongodb')) ? (await import('./core/connection.js')).default.getDb() : null;
+    const db = (primary.uri && primary.uri.startsWith('mongodb')) ? (await import('./core/connection.ts')).default.getDb() : null;
     if (!db) throw new Error("Migration currently only supported from MongoDB source.");
 
     const docs = await db.collection('_manas_documents').find({ project: this.projectName }).toArray();

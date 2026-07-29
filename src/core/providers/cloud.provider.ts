@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import BaseProvider, { EmbedResult } from './base.provider.ts';
+import BaseProvider from './base.provider.ts';
+import type { EmbedResult } from './base.provider.ts';
 
 export class OpenAIProvider extends BaseProvider {
   public model: string;
