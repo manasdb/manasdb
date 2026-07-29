@@ -70,11 +70,15 @@
   },
   "scripts": {
     "test:random": "node tests/test-large-random.ts",
+    "test:random-pg": "node tests/test-large-random-pg.ts",
     "test:features": "node tests/test-features.ts",
     "test:e2e": "node tests/test-e2e.ts",
     "test:features-pg": "node tests/test-features-pg.ts",
     "test:e2e-pg": "node tests/test-e2e-pg.ts",
     "test:redis-cache": "node tests/test-redis-cache.ts",
+    "test:polyglot-e2e": "node tests/test-polyglot-e2e.ts",
+    "test:polyglot-features": "node tests/test-polyglot-features.ts",
+    "test:polyglot-methods": "node tests/test-polyglot-methods.ts",
     "test:sdk": "node tests/test-sdk-ts.ts",
     "test:providers": "node tests/test-providers-ts.ts",
     "test:core": "node tests/test-core-ts.ts",
@@ -82,6 +86,7 @@
     "test:zero-config": "node tests/test-zero-config.ts",
     "test:connections": "node tests/test-all-connections.ts",
     "test": "node tests/test-sdk-ts.ts && node tests/test-providers-ts.ts && node tests/test-core-ts.ts && node tests/test-utils-ts.ts && node tests/test-zero-config.ts && node tests/test-all-connections.ts",
+    "view": "node tools/view-collections.ts",
     "health": "node src/health.ts",
     "build": "node build.ts"
   },

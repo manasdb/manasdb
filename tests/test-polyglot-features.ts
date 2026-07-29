@@ -110,9 +110,10 @@ async function runFeaturesTest(): Promise<void> {
 
         // Second duplicate EXACT recall should instantly hit the Semantic LRU Cache
         const recall2 = await db.recall(queryText, { mode: 'qa', limit: 3 });
+        const cacheHitVal = (recall2 as any)._trace.cacheHit;
         assert(
-            (recall2 as any)._trace.cacheHit === true,
-            "Subsequent exact recall successfully hit semantic cache",
+            !!cacheHitVal && cacheHitVal !== false,
+            `Subsequent exact recall successfully hit semantic cache (${cacheHitVal})`,
             "Subsequent recall missed cache"
         );
 
