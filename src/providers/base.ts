@@ -32,7 +32,7 @@ export class BaseProvider {
   /**
    * Initializes schemas, tables, and necessary indexes.
    */
-  async init(): Promise<void> {
+  async init(targetDims?: number): Promise<any> {
     throw new Error('BaseProvider: init() not implemented.');
   }
 

@@ -27,14 +27,15 @@ main
   │     ├── src/core/connection.ts
   │     └── tests/test-core-ts.js (automated TS core unit test suite)
   │
-  ├──► branch v0.4.5 [NEXT ⏳]
+  ├──► branch v0.4.5 [COMPLETED ✅]
   │     ├── src/providers/memory.ts
   │     ├── src/providers/mongodb.ts
   │     ├── src/providers/postgres.ts
   │     ├── src/providers/redis.ts
-  │     └── src/providers/factory.ts
+  │     ├── src/providers/factory.ts
+  │     └── tests/test-providers-ts.js (automated TS storage provider test suite)
   │
-  ├──► branch v0.4.6 [PLANNED]
+  ├──► branch v0.4.6 [NEXT ⏳]
   │     ├── src/core/memory-engine.ts
   │     ├── src/index.ts
   │     ├── bin/manas.ts
