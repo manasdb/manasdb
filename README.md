@@ -8,6 +8,7 @@
 <img src="https://img.shields.io/badge/Node.js-%3E=18.0-green?style=for-the-badge&logo=nodedotjs" />
 <img src="https://img.shields.io/badge/MongoDB-Atlas-blue?style=for-the-badge&logo=mongodb" />
 <img src="https://img.shields.io/badge/PostgreSQL-pgvector-blue?style=for-the-badge&logo=postgresql" />
+<img src="https://img.shields.io/badge/TypeScript-100%25-blue?style=for-the-badge&logo=typescript" />
 <img src="https://img.shields.io/badge/Models-OpenAI%20%7C%20Gemini%20%7C%20Ollama%20%7C%20Local-lightgrey?style=for-the-badge" />
 
 <br /><br />
@@ -20,7 +21,7 @@
 > was rebuilding the same fragile RAG pipeline from scratch. There
 > had to be a better way.
 
-**ManasDB is the Node.js-native alternative to Mem0** — with local
+**ManasDB is the Node.js-native alternative to Mem0** — built in 100% native TypeScript with local
 embeddings, full data privacy, 29x faster repeated queries, and
 MCP-native integration out of the box.
 

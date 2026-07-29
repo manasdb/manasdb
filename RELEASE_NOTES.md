@@ -1,5 +1,62 @@
 # Release Notes - ManasDB
 
+## Version 0.4.7
+
+**Tag:** `v0.4.7`
+**Date:** 2026-07-29
+
+### Major Features
+
+- **100% Native TypeScript Migration**: We have fully transitioned the entire ManasDB codebase from JavaScript to TypeScript. This brings robust type safety to all core engines, storage providers, utilities, and test suites.
+- **Type Definitions Included**: Developers using ManasDB in TypeScript projects will now get first-class IDE intellisense, autocomplete, and compile-time checks out of the box via the bundled `.d.ts` types.
+- **Storage Viewer CLI**: Introduced a new programmatic debugging tool (`npm run view`) that connects directly to your MongoDB Atlas and PostgreSQL instances to summarize stored documents, vectors, and chunks, without needing external database clients like Atlas UI or pgAdmin.
+
+### Changed
+
+- **Legacy Removal**: All `.js` source files have been permanently removed. The codebase is purely `.ts` and is compiled to V8 Bytecode (`.jsc`) via ESBuild.
+
+---
+
+## Version 0.4.6
+
+**Tag:** `v0.4.6`
+**Date:** 2026-07-28
+
+### Major Features
+- **TypeScript Migration (Phase 4)**: Converted core orchestration files including `src/core/memory-engine.ts`, AI providers (`base, cloud, ollama, transformers`), `src/index.ts`, `bin/manas.ts`, and CLI scripts (`health`, `benchmark`, `build`). Added `tests/test-sdk-ts.ts`.
+
+---
+
+## Version 0.4.5
+
+**Tag:** `v0.4.5`
+**Date:** 2026-07-28
+
+### Major Features
+- **TypeScript Migration (Phase 3)**: Converted all storage provider implementations (`mongodb`, `postgres`, `redis`, `memory`, `factory`) to native TypeScript. Added automated TS storage provider test suite.
+
+---
+
+## Version 0.4.4
+
+**Tag:** `v0.4.4`
+**Date:** 2026-07-27
+
+### Major Features
+- **TypeScript Migration (Phase 2)**: Converted core engine internals (`providers/base.ts`, `model-factory.ts`, `tree-index.ts`, `connection.ts`) to native TypeScript. Added automated TS core unit test suite.
+
+---
+
+## Version 0.4.3
+
+**Tag:** `v0.4.3`
+**Date:** 2026-07-27
+
+### Major Features
+- **TypeScript Migration (Phase 1)**: Initialized TypeScript ecosystem with `tsconfig.json`. Converted `src/types/index.ts` and all utilities (`vector`, `PIIFilter`, `Telemetry`, `TokenCounter`, etc.). Added TS utility unit test suite.
+
+---
+
 ## Version 0.4.2
 
 **Tag:** `v0.4.2`
