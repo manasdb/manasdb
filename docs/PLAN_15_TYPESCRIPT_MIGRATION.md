@@ -37,9 +37,11 @@ main
   │
   ├──► branch v0.4.6 [COMPLETED ✅]
   │     ├── src/core/memory-engine.ts
+  │     ├── src/core/providers/*.ts (base, cloud, ollama, transformers)
   │     ├── src/index.ts
+  │     ├── src/health.ts & src/benchmark.ts
   │     ├── bin/manas.ts
-  │     ├── build.js update for TS entry point (src/index.ts)
+  │     ├── build.ts (converted root build script build.js -> build.ts)
   │     └── tests/test-sdk-ts.js (automated TS SDK integration test suite)
   │
   └──► branch v0.4.7 [NEXT ⏳ - FINAL VERIFICATION & CLEANUP]
@@ -54,7 +56,8 @@ main
 
 1. **Parallel Co-existence:** During releases `v0.4.3` through `v0.4.6`, legacy `.js` files remain intact to ensure existing build targets (`dist/index.cjs`) and test scripts continue working seamlessly.
 2. **Type-Only Imports for ESM Compatibility:** When importing interfaces/types across TypeScript files in Node.js ESM mode, `import type { ... } from '...'` syntax must be used so runtime type-stripping (`--experimental-strip-types` / Node 24+) operates cleanly.
-3. **Bundler & Esbuild Integration:** `build.js` uses `esbuild`, which handles both `.ts` and `.js` entry points natively without extra transpilation steps.
+3. **Bundler & Esbuild Integration:** `build.ts` uses `esbuild` to bundle `src/index.ts` into CommonJS and compile it to V8 bytecode (`dist/manasdb.jsc`).
+4. **Complete Codebase Coverage:** All source files across `src/`, `bin/`, `src/core/providers/`, and root level (`build.ts`) are 100% converted to TypeScript.
 
 ---
 
@@ -62,7 +65,7 @@ main
 
 Before marking any release branch complete, the following checks must pass:
 * `npx tsc --noEmit` / `npx tsc` (0 type errors)
-* `npm run build` (Clean CJS & V8 Bytecode compilation)
+* `npm run build` (Clean CJS & V8 Bytecode compilation via `build.ts`)
 * `node tests/test-zero-config.js` (In-memory verification)
-* Dedicated module unit tests (e.g. `node tests/test-utils-ts.js`)
+* Dedicated module unit tests (`node tests/test-sdk-ts.js`, `node tests/test-providers-ts.js`, etc.)
 * Git commit on the specific version branch (`v0.4.x`)
