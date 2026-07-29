@@ -1,6 +1,6 @@
 {
   "name": "@manasdb/core",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "The memory layer for AI applications — hybrid RAG retrieval, PII shield, polyglot storage",
   "main": "dist/index.cjs",
   "exports": {
@@ -90,14 +90,15 @@
     "openai": "^6.25.0"
   },
   "optionalDependencies": {
-    "pg": "^8.20.0",
     "@types/pg": "^8.18.0",
     "ioredis": "^5.10.0",
-    "mongodb": "^6.0.0"
+    "mongodb": "^6.0.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "bytenode": "^1.5.7",
     "esbuild": "^0.27.3",
-    "javascript-obfuscator": "^5.3.0"
+    "javascript-obfuscator": "^5.3.0",
+    "typescript": "^7.0.2"
   }
 }
