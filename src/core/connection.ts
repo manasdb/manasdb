@@ -22,6 +22,8 @@ export class MongoConnection {
 
     try {
       const { MongoClient } = await import("mongodb");
+      const dns = await import("dns");
+      try { dns.setDefaultResultOrder?.("ipv4first"); dns.setServers?.(["8.8.8.8", "1.1.1.1"]); } catch (e) {}
       this.client = new MongoClient(uri);
       await this.client.connect();
       this.db = this.client.db(dbName);
