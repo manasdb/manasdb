@@ -44,7 +44,7 @@ main
   │     ├── build.ts (converted root build script build.js -> build.ts)
   │     └── tests/test-sdk-ts.js (automated TS SDK integration test suite)
   │
-  └──► branch v0.4.7 [NEXT ⏳ - FINAL VERIFICATION & CLEANUP]
+  └──► branch v0.4.7 [COMPLETED ✅]
         ├── Run full test suite (npm run test:all, test-utils-ts.js, zero-config)
         ├── Remove legacy .js source files in src/ and bin/
         └── Update package.json to v0.4.7 with TypeScript declarations

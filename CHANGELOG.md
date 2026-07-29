@@ -5,6 +5,32 @@ All notable changes to the ManasDB project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-07-29
+
+### Added
+- **100% Native TypeScript Migration**: The entire ManasDB codebase, including core engines, providers, utils, examples, and tests, has been fully migrated from JavaScript to TypeScript (`v0.4.3` → `v0.4.7`).
+- **Storage Viewer CLI**: Added `npm run view` (`tools/view-collections.ts`) to programmatically inspect internal MongoDB and PostgreSQL collections/tables.
+- **Type Definitions**: Shipped native `.d.ts` types for all SDK methods.
+
+### Changed
+- **Removed Legacy JS**: All legacy `.js` source files have been permanently removed in favor of `.ts` files compiled via ESBuild to V8 bytecode.
+
+## [0.4.6] - 2026-07-28
+### Added
+- **TypeScript Migration (Phase 4)**: Converted core orchestration files including `src/core/memory-engine.ts`, AI providers (`base, cloud, ollama, transformers`), `src/index.ts`, `bin/manas.ts`, and CLI scripts (`health`, `benchmark`, `build`). Added `tests/test-sdk-ts.ts`.
+
+## [0.4.5] - 2026-07-28
+### Added
+- **TypeScript Migration (Phase 3)**: Converted all storage provider implementations (`mongodb`, `postgres`, `redis`, `memory`, `factory`) to native TypeScript. Added automated TS storage provider test suite.
+
+## [0.4.4] - 2026-07-27
+### Added
+- **TypeScript Migration (Phase 2)**: Converted core engine internals (`providers/base.ts`, `model-factory.ts`, `tree-index.ts`, `connection.ts`) to native TypeScript. Added automated TS core unit test suite.
+
+## [0.4.3] - 2026-07-27
+### Added
+- **TypeScript Migration (Phase 1)**: Initialized TypeScript ecosystem with `tsconfig.json`. Converted `src/types/index.ts` and all utilities (`vector`, `PIIFilter`, `Telemetry`, `TokenCounter`, etc.). Added TS utility unit test suite.
+
 ## [0.4.2] - 2026-03-17
 
 ### Added
