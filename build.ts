@@ -9,7 +9,7 @@ if (fs.existsSync('dist')) {
 }
 fs.mkdirSync('dist', { recursive: true });
 
-const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ioredis', 'ollama', 'openai', '@google/generative-ai', '@xenova/transformers', 'dotenv', 'chalk'];
+const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ioredis', 'ollama', 'openai', '@google/generative-ai', '@xenova/transformers', 'dotenv'];
 
 await esbuild.build({
   entryPoints: ['src/index.ts'],

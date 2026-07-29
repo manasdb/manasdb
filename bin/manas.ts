@@ -89,4 +89,17 @@ program
         });
     });
 
+program
+    .command('cost-estimate <text>')
+    .description('Estimate token usage and cost for embedding a given text string')
+    .option('-m, --model <model>', 'Embedding model to use for estimation', 'openai')
+    .action((text: string, options: any) => {
+        const { tokens, costUSD, model } = CostCalculator.estimateAbsorbCost(text, options.model);
+        console.log(chalk.cyan('\n[INFO] Cost Estimation Result\n'));
+        console.log(`  Input Text:   "${text.substring(0, 40)}${text.length > 40 ? '...' : ''}"`);
+        console.log(`  Model:        ${chalk.yellow(model)}`);
+        console.log(`  Est. Tokens:  ${chalk.green(tokens)}`);
+        console.log(`  Est. Cost:    ${chalk.green('$' + costUSD.toFixed(6))}\n`);
+    });
+
 program.parse(process.argv);
