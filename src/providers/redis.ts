@@ -30,9 +30,10 @@ export class RedisProvider {
 
     this.client = new Redis(this.uri, {
       lazyConnect: true,
-      maxRetriesPerRequest: 3,
-      enableReadyCheck: true,
+      maxRetriesPerRequest: 1,
+      enableReadyCheck: false,
     });
+    this.client.on('error', () => {});
 
     await this.client.connect();
     await this.client.ping();
