@@ -20,13 +20,14 @@ main
   │     ├── src/utils/*.ts (vector, PIIFilter, Telemetry, TokenCounter, etc.)
   │     └── tests/test-utils-ts.js (automated TS utility unit test suite)
   │
-  ├──► branch v0.4.4 [NEXT ⏳]
+  ├──► branch v0.4.4 [COMPLETED ✅]
   │     ├── src/providers/base.ts
   │     ├── src/core/model-factory.ts
   │     ├── src/core/tree-index.ts
-  │     └── src/core/connection.ts
+  │     ├── src/core/connection.ts
+  │     └── tests/test-core-ts.js (automated TS core unit test suite)
   │
-  ├──► branch v0.4.5 [PLANNED]
+  ├──► branch v0.4.5 [NEXT ⏳]
   │     ├── src/providers/memory.ts
   │     ├── src/providers/mongodb.ts
   │     ├── src/providers/postgres.ts
