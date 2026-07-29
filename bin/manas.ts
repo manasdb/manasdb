@@ -6,13 +6,18 @@ import * as dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
 import CostCalculator from '../src/utils/CostCalculator.ts';
 
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 dotenv.config();
+
+const pkg = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
 
 const program = new Command();
 program
   .name('manas')
   .description('CLI Management Tool for ManasDB Vector Stores')
-  .version('0.5.0');
+  .version(pkg.version);
 
 function getUri(): string {
     const uri = process.env.MONGODB_URI;
