@@ -35,13 +35,14 @@ main
   │     ├── src/providers/factory.ts
   │     └── tests/test-providers-ts.js (automated TS storage provider test suite)
   │
-  ├──► branch v0.4.6 [NEXT ⏳]
+  ├──► branch v0.4.6 [COMPLETED ✅]
   │     ├── src/core/memory-engine.ts
   │     ├── src/index.ts
   │     ├── bin/manas.ts
-  │     └── build.js update for TS entry points & .d.ts generation
+  │     ├── build.js update for TS entry point (src/index.ts)
+  │     └── tests/test-sdk-ts.js (automated TS SDK integration test suite)
   │
-  └──► branch v0.4.7 [FINAL VERIFICATION & CLEANUP]
+  └──► branch v0.4.7 [NEXT ⏳ - FINAL VERIFICATION & CLEANUP]
         ├── Run full test suite (npm run test:all, test-utils-ts.js, zero-config)
         ├── Remove legacy .js source files in src/ and bin/
         └── Update package.json to v0.4.7 with TypeScript declarations

@@ -18,7 +18,7 @@ const PROVIDER_EXTERNALS = ['mongodb', 'pg', 'ioredis', 'ollama', 'openai', '@go
 // Because providers no longer have top-level require()s of pg/mongodb,
 // we can safely bundle them without breaking the lazy-loading crash-guards.
 await esbuild.build({
-  entryPoints: ['src/index.js'],
+  entryPoints: ['src/index.ts'],
   bundle: true,
   outfile: 'dist/manasdb.bundle.cjs',
   format: 'cjs',

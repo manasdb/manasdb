@@ -88,7 +88,7 @@ export class MemoryProvider extends BaseProvider {
       });
     }
 
-    return { documentId, chunksInserted: chunks.length };
+    return { documentId, contentId: documentId, chunksInserted: chunks.length };
   }
 
   /**

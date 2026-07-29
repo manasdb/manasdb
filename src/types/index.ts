@@ -7,8 +7,10 @@ export interface ModelConfig {
 }
 
 export interface PIIShieldRule {
-  name: string;
-  pattern: RegExp;
+  name?: string;
+  pattern?: RegExp;
+  regex?: RegExp;
+  placeholder?: string;
   replacement?: string;
 }
 
