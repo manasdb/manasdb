@@ -25,62 +25,29 @@ jobs:
         id: pkg
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # ── 3. Build changelog from commits since last tag ──────────────────────
-      - name: Generate changelog
+      # ── 3. Extract changelog from CHANGELOG.md ──────────────────────────────
+      - name: Extract release notes
         id: changelog
         run: |
-          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
-          CURR_TAG=${GITHUB_REF_NAME}
+          # Remove 'v' prefix if present for matching CHANGELOG.md format (e.g. v0.4.7 -> 0.4.7)
+          VERSION_NO_V=$(echo "${GITHUB_REF_NAME}" | sed 's/^v//')
+          
+          # Extract the section for the specific version using awk
+          # We use index() to avoid regex bracket escaping issues for the start string
+          awk -v ver="## [$VERSION_NO_V]" '
+            index($0, ver) == 1 {flag=1; next}
+            /^## \[/ {if(flag) exit}
+            flag {print}
+          ' CHANGELOG.md > changelog.md
 
-          echo "## What's Changed" > changelog.md
-          echo "" >> changelog.md
-
-          if [ -z "$PREV_TAG" ]; then
-            echo "🎉 Initial release" >> changelog.md
-          else
-            echo "**Full diff:** [\`$PREV_TAG → $CURR_TAG\`](https://github.com/${{ github.repository }}/compare/$PREV_TAG...$CURR_TAG)" >> changelog.md
-            echo "" >> changelog.md
-
-            # Group commits by conventional-commit prefix
-            FEAT=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- feat" || true)
-            FIX=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- fix" || true)
-            DOCS=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -i "^- docs" || true)
-            CHORE=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -iE "^- (chore|refactor|perf|test|build|ci)" || true)
-            OTHER=$(git log $PREV_TAG..HEAD --pretty=format:"- %s" -- | grep -ivE "^- (feat|fix|docs|chore|refactor|perf|test|build|ci)" || true)
-
-            if [ -n "$FEAT" ]; then
-              echo "### ✨ Features" >> changelog.md
-              echo "$FEAT" >> changelog.md
-              echo "" >> changelog.md
-            fi
-
-            if [ -n "$FIX" ]; then
-              echo "### 🐛 Bug Fixes" >> changelog.md
-              echo "$FIX" >> changelog.md
-              echo "" >> changelog.md
-            fi
-
-            if [ -n "$DOCS" ]; then
-              echo "### 📝 Documentation" >> changelog.md
-              echo "$DOCS" >> changelog.md
-              echo "" >> changelog.md
-            fi
-
-            if [ -n "$CHORE" ]; then
-              echo "### 🔧 Maintenance" >> changelog.md
-              echo "$CHORE" >> changelog.md
-              echo "" >> changelog.md
-            fi
-
-            if [ -n "$OTHER" ]; then
-              echo "### 🔀 Other Changes" >> changelog.md
-              echo "$OTHER" >> changelog.md
-              echo "" >> changelog.md
-            fi
+          # If changelog is empty (e.g. no entry found), add a fallback
+          if [ ! -s changelog.md ]; then
+            echo "No release notes found in CHANGELOG.md for version $VERSION_NO_V." > changelog.md
           fi
 
           # Append static footer
           cat >> changelog.md << 'EOF'
+
           ---
           ### 📦 Install
 
