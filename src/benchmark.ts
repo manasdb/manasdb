@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import ManasDB from './index.ts';
+import { ManasDB } from './index.ts';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 

@@ -1,3 +1,4 @@
+import { CollectionNames } from '../storage/CollectionNames.ts';
 import crypto from 'crypto';
 import MongoConnection from '../core/connection.ts';
 import MemoryEngine from '../core/memory-engine.ts';
@@ -29,9 +30,9 @@ export class MongoProvider extends BaseProvider {
     await MongoConnection.validateEnvironment();
 
     const db = MongoConnection.getDb();
-    const vectorsCollection = db.collection('_manas_vectors');
-    const chunksCollection = db.collection('_manas_chunks');
-    const docsCollection = db.collection('_manas_documents');
+    const vectorsCollection = db.collection(CollectionNames.VECTORS);
+    const chunksCollection = db.collection(CollectionNames.CHUNKS);
+    const docsCollection = db.collection(CollectionNames.DOCUMENTS);
 
     try { await docsCollection.createIndex({ content_hash: 1, project: 1 }); } catch (_) {}
     try {
@@ -43,7 +44,7 @@ export class MongoProvider extends BaseProvider {
     try { await chunksCollection.createIndex({ document_id: 1, chunk_index: 1 }); } catch (_) {}
     try { await vectorsCollection.createIndex({ embedding_hash: 1 }); } catch (_) {}
     try {
-      await db.collection('_manas_telemetry').createIndex(
+      await db.collection(CollectionNames.TELEMETRY).createIndex(
         { timestamp: 1 },
         { expireAfterSeconds: 63072000, background: true }
       );
@@ -79,9 +80,9 @@ export class MongoProvider extends BaseProvider {
 
   async insert({ rawText, filteredText, chunks = [], parentTags, aiProvider, targetDims }: InsertParams): Promise<any> {
     const db = MongoConnection.getDb();
-    const chunksCollection = db.collection('_manas_chunks');
-    const docsCollection = db.collection('_manas_documents');
-    const vectorsCollection = db.collection('_manas_vectors');
+    const chunksCollection = db.collection(CollectionNames.CHUNKS);
+    const docsCollection = db.collection(CollectionNames.DOCUMENTS);
+    const vectorsCollection = db.collection(CollectionNames.VECTORS);
 
     let isDeduplicated = false;
     
@@ -172,8 +173,8 @@ export class MongoProvider extends BaseProvider {
 
   async vectorSearch({ queryVector, limit = 10, minScore = 0, aiModelName, mode = 'qa', includeVector = false }: VectorSearchParams): Promise<any[]> {
     const db = MongoConnection.getDb();
-    const vectorsCollection = db.collection('_manas_vectors');
-    const chunksCollection = db.collection('_manas_chunks');
+    const vectorsCollection = db.collection(CollectionNames.VECTORS);
+    const chunksCollection = db.collection(CollectionNames.CHUNKS);
 
     const indexName = `vector_index_${queryVector.length}`;
 
@@ -197,7 +198,7 @@ export class MongoProvider extends BaseProvider {
       { $project: projectStage },
       {
         $lookup: {
-          from: '_manas_chunks',
+          from: CollectionNames.CHUNKS,
           localField: 'chunk_id',
           foreignField: '_id',
           as: 'contentDetails',
@@ -334,7 +335,7 @@ export class MongoProvider extends BaseProvider {
 
   async keywordSearch({ query, limit = 10, mode = 'qa' }: KeywordSearchParams): Promise<any[]> {
     const db = MongoConnection.getDb();
-    const chunksCollection = db.collection('_manas_chunks');
+    const chunksCollection = db.collection(CollectionNames.CHUNKS);
 
     const pipeline = [
       { 
@@ -421,9 +422,9 @@ export class MongoProvider extends BaseProvider {
     const { ObjectId } = await import('mongodb');
     const id = typeof documentId === 'string' ? new ObjectId(documentId) : documentId;
     
-    await db.collection('_manas_vectors').deleteMany({ document_id: id });
-    await db.collection('_manas_chunks').deleteMany({ document_id: id });
-    await db.collection('_manas_documents').deleteOne({ _id: id });
+    await db.collection(CollectionNames.VECTORS).deleteMany({ document_id: id });
+    await db.collection(CollectionNames.CHUNKS).deleteMany({ document_id: id });
+    await db.collection(CollectionNames.DOCUMENTS).deleteOne({ _id: id });
   }
 
   async deleteMany(query: Record<string, any>): Promise<number> {
@@ -435,13 +436,13 @@ export class MongoProvider extends BaseProvider {
       mongoQuery[`tags.${k}`] = v;
     }
     
-    const docs = await db.collection('_manas_documents').find(mongoQuery, { projection: { _id: 1 } }).toArray();
+    const docs = await db.collection(CollectionNames.DOCUMENTS).find(mongoQuery, { projection: { _id: 1 } }).toArray();
     const docIds = docs.map((d: any) => d._id);
     
     if (docIds.length > 0) {
-      await db.collection('_manas_vectors').deleteMany({ document_id: { $in: docIds } });
-      await db.collection('_manas_chunks').deleteMany({ document_id: { $in: docIds } });
-      const res = await db.collection('_manas_documents').deleteMany({ _id: { $in: docIds } });
+      await db.collection(CollectionNames.VECTORS).deleteMany({ document_id: { $in: docIds } });
+      await db.collection(CollectionNames.CHUNKS).deleteMany({ document_id: { $in: docIds } });
+      const res = await db.collection(CollectionNames.DOCUMENTS).deleteMany({ _id: { $in: docIds } });
       return res.deletedCount;
     }
     return 0;
@@ -450,9 +451,9 @@ export class MongoProvider extends BaseProvider {
   async clearAll(): Promise<{ deletedTotal: number }> {
     const db = MongoConnection.getDb();
     if (!db) return { deletedTotal: 0 };
-    const chunksRes = await db.collection('_manas_chunks').deleteMany({ project: this.projectName });
-    const vectorRes = await db.collection('_manas_vectors').deleteMany({ project: this.projectName });
-    const docsRes = await db.collection('_manas_documents').deleteMany({ project: this.projectName });
+    const chunksRes = await db.collection(CollectionNames.CHUNKS).deleteMany({ project: this.projectName });
+    const vectorRes = await db.collection(CollectionNames.VECTORS).deleteMany({ project: this.projectName });
+    const docsRes = await db.collection(CollectionNames.DOCUMENTS).deleteMany({ project: this.projectName });
     return {
       deletedTotal: (chunksRes.deletedCount || 0) + (vectorRes.deletedCount || 0) + (docsRes.deletedCount || 0)
     };
@@ -461,13 +462,13 @@ export class MongoProvider extends BaseProvider {
   async getManifest(): Promise<any> {
     const db = MongoConnection.getDb();
     if (!db) return null;
-    return await db.collection('_manas_config').findOne({ key: 'manifest', project: this.projectName });
+    return await db.collection(CollectionNames.METADATA).findOne({ key: 'manifest', project: this.projectName });
   }
 
   async updateManifest(manifest: any): Promise<void> {
     const db = MongoConnection.getDb();
     if (!db) return;
-    await db.collection('_manas_config').updateOne(
+    await db.collection(CollectionNames.METADATA).updateOne(
       { key: 'manifest', project: this.projectName },
       { $set: { ...manifest, updatedAt: new Date() } },
       { upsert: true }
@@ -478,7 +479,7 @@ export class MongoProvider extends BaseProvider {
     const db = MongoConnection.getDb();
     if (!db) return 0;
     
-    const docs = await db.collection('_manas_documents').find({
+    const docs = await db.collection(CollectionNames.DOCUMENTS).find({
       project: this.projectName,
       createdAt: { $lt: date }
     }).toArray();
@@ -486,8 +487,8 @@ export class MongoProvider extends BaseProvider {
     if (docs.length === 0) return 0;
     const docIds = docs.map((d: any) => d._id);
     
-    await db.collection('_manas_chunks').deleteMany({ document_id: { $in: docIds } });
-    const res = await db.collection('_manas_vectors').deleteMany({ chunk_id: { $in: docIds } });
+    await db.collection(CollectionNames.CHUNKS).deleteMany({ document_id: { $in: docIds } });
+    const res = await db.collection(CollectionNames.VECTORS).deleteMany({ chunk_id: { $in: docIds } });
     return res.deletedCount;
   }
 
@@ -510,20 +511,20 @@ export class MongoProvider extends BaseProvider {
       }}
     ];
     
-    const result = await db.collection('_manas_telemetry').aggregate(pipeline).toArray();
+    const result = await db.collection(CollectionNames.TELEMETRY).aggregate(pipeline).toArray();
     return result.length > 0 ? result[0].totalSpend : 0;
   }
 
   async clear(): Promise<void> {
     const db = MongoConnection.getDb();
-    await db.collection('_manas_vectors').deleteMany({});
-    await db.collection('_manas_chunks').deleteMany({});
-    await db.collection('_manas_documents').deleteMany({});
+    await db.collection(CollectionNames.VECTORS).deleteMany({});
+    await db.collection(CollectionNames.CHUNKS).deleteMany({});
+    await db.collection(CollectionNames.DOCUMENTS).deleteMany({});
   }
 
   async clearTelemetry(): Promise<void> {
     const db = MongoConnection.getDb();
-    await db.collection('_manas_telemetry').deleteMany({});
+    await db.collection(CollectionNames.TELEMETRY).deleteMany({});
   }
 
   async health(): Promise<boolean> {
@@ -536,14 +537,14 @@ export class MongoProvider extends BaseProvider {
     try {
       const db = MongoConnection.getDb();
       if (!db) return;
-      const telemetryCollection = db.collection('_manas_telemetry');
+      const telemetryCollection = db.collection(CollectionNames.TELEMETRY);
       telemetryCollection.insertOne(telemetryDoc).catch(() => {});
     } catch (e) {}
   }
 
   async list(limit = 10): Promise<any[]> {
     const db = MongoConnection.getDb();
-    const docs = await db.collection('_manas_documents')
+    const docs = await db.collection(CollectionNames.DOCUMENTS)
       .find({ project: this.projectName })
       .sort({ createdAt: -1 })
       .limit(limit)
