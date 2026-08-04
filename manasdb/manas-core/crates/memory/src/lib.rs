@@ -1,14 +1,16 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The `memory` crate provides the core domain model and algorithms for 
+//! semantic assembly, deduplication, and hashing. It is entirely agnostic 
+//! to storage engines and database connectivity.
+
+pub mod algorithms;
+pub mod builders;
+pub mod entities;
+pub mod errors;
+pub mod ids;
+pub mod serialization;
+pub mod validation;
+
+pub use errors::MemoryError;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+mod tests;
