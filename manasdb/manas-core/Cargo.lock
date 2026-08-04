@@ -729,6 +729,14 @@ dependencies = [
 [[package]]
 name = "tokenizer"
 version = "0.1.0"
+dependencies = [
+ "criterion",
+ "proptest",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
 
 [[package]]
 name = "unarray"

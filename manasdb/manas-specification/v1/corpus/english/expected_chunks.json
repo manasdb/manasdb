@@ -1,0 +1,58 @@
+[
+  {
+    "index": 0,
+    "text": "This is a simple test",
+    "token_count": 5,
+    "start_offset": 0,
+    "end_offset": 21,
+    "paragraph_index": 0
+  },
+  {
+    "index": 1,
+    "text": "simple test document for the",
+    "token_count": 5,
+    "start_offset": 10,
+    "end_offset": 38,
+    "paragraph_index": 0
+  },
+  {
+    "index": 2,
+    "text": "for the English language corpus.",
+    "token_count": 5,
+    "start_offset": 31,
+    "end_offset": 63,
+    "paragraph_index": 0
+  },
+  {
+    "index": 3,
+    "text": "language corpus.\nIt contains multiple",
+    "token_count": 5,
+    "start_offset": 47,
+    "end_offset": 84,
+    "paragraph_index": 0
+  },
+  {
+    "index": 4,
+    "text": "contains multiple sentences.",
+    "token_count": 3,
+    "start_offset": 67,
+    "end_offset": 95,
+    "paragraph_index": 0
+  },
+  {
+    "index": 5,
+    "text": "And a second paragraph right",
+    "token_count": 5,
+    "start_offset": 97,
+    "end_offset": 125,
+    "paragraph_index": 1
+  },
+  {
+    "index": 6,
+    "text": "paragraph right here.",
+    "token_count": 3,
+    "start_offset": 110,
+    "end_offset": 131,
+    "paragraph_index": 1
+  }
+]

@@ -1,14 +1,18 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! The `tokenizer` crate provides pure, side-effect-free string manipulation, 
+//! chunking algorithms, and token counting. It operates independently of any 
+//! specific embedding model or storage layer.
+
+pub mod chunkers;
+pub mod errors;
+pub mod models;
+pub mod traits;
+pub mod types;
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod tests;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use chunkers::SlidingWindowChunker;
+pub use errors::TokenizerError;
+pub use models::WhitespaceTokenizer;
+pub use traits::{Chunker, Tokenizer};
+pub use types::{Chunk, ChunkOptions, ChunkStrategy, Token};
