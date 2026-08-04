@@ -1,3 +1,4 @@
+import { CollectionNames } from '../storage/CollectionNames.ts';
 export interface InsertParams {
   rawText: string;
   filteredText?: string;
@@ -28,7 +29,18 @@ export interface KeywordSearchParams {
  * All database implementations (Polyglot Persistence) must extend this class
  * to ensure ManasDB can broadcast predictably across multiple layers.
  */
-export class BaseProvider {
+export abstract class BaseProvider {
+  pool?: any;
+  uri?: string;
+
+  async close?(): Promise<void>;
+  async getManifest?(): Promise<any>;
+  async updateManifest?(arg0: { modelName: string; dimensions: number; lockedAt: Date; }): Promise<void>;
+  async getMonthlySpend?(): Promise<any>;
+  async expireOlderThan?(date: Date): Promise<any>;
+  async deleteMany?(query: Record<string, any>): Promise<number | undefined>;
+  async clear?(): Promise<void>;
+  async clearTelemetry?(): Promise<void>;
   /**
    * Initializes schemas, tables, and necessary indexes.
    */

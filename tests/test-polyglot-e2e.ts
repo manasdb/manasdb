@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import chalk from 'chalk';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 
 const ARTICLE_TEXT = `
 Artificial intelligence (AI) is the intelligence of machines or software, as opposed to the intelligence of human beings or animals. AI applications include advanced web search engines (e.g., Google Search), recommendation systems (used by YouTube, Amazon, and Netflix), understanding human speech (such as Siri and Alexa), self-driving cars (e.g., Waymo), generative or creative tools (ChatGPT and AI art), and competing at the highest level in strategic games (such as chess and Go).

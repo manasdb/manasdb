@@ -46,7 +46,7 @@ export class MemoryEngine {
     const words = text.split(/\W+/);
     
     const keywords = words
-      .filter(word => word.length > 4)
+      .filter(word => word.length > 4 && word.length < 50)
       .map(word => word.toLowerCase());
       
     const uniqueKeywords = [...new Set(keywords)];
@@ -80,7 +80,9 @@ export class MemoryEngine {
   static _tokenAwareChunk(text: string, maxTokens = 100, overlapTokens = 20): ChunkOutput[] {
     if (!text || text.trim() === '') return [];
     
-    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+    // Prevent huge contiguous strings from generating impossible chunks
+    const safeText = text.replace(/([^\s]{50})/g, '$1 ');
+    const paragraphs = safeText.split(/\n\s*\n/).filter(p => p.trim());
     const chunks: ChunkOutput[] = [];
     let chunkIndex = 0;
 

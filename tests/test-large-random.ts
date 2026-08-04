@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 import MongoConnection from '../src/core/connection.ts';
 
 const ARTICLE_TEXT = `

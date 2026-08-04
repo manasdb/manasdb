@@ -1,4 +1,5 @@
 import MongoConnection from '../core/connection.ts';
+import { CollectionNames } from '../storage/CollectionNames.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -95,7 +96,7 @@ class TelemetryManager {
             } else {
                 const db = MongoConnection.getDb();
                 if (db) {
-                    db.collection('_manas_telemetry').insertOne(telemetryDoc).catch(() => {});
+                    db.collection(CollectionNames.TELEMETRY).insertOne(telemetryDoc).catch(() => {});
                 }
             }
         } catch (error) {}
