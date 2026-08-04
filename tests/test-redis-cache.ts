@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import chalk from 'chalk';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 import RedisProvider from '../src/providers/redis.ts';
 
 const assert = (condition: boolean, successMsg: string, failMsg: string) => {

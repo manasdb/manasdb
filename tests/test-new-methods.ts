@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 
 async function main(): Promise<void> {
   console.log('Testing forget, forgetMany, and lambda options...');

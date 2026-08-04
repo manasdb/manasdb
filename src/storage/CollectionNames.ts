@@ -1,0 +1,21 @@
+export const CollectionNames = {
+  MEMORY: "_manas_memory",
+  CHUNKS: "_manas_chunks",
+  VECTORS: "_manas_vectors",
+  TELEMETRY: "_manas_telemetry",
+  BELIEFS: "_manas_beliefs",
+  KNOWLEDGE: "_manas_knowledge",
+  RELATIONSHIPS: "_manas_relationships",
+  DOCUMENTS: "_manas_documents",
+  PROJECTS: "_manas_projects",
+  METRICS: "_manas_metrics",
+  EVENTS: "_manas_events",
+  JOBS: "_manas_jobs",
+  CACHE: "_manas_cache",
+  METADATA: "_manas_metadata",
+  CLAIMS: "_manas_claims",
+  EVIDENCE: "_manas_evidence",
+  REFLECTIONS: "_manas_reflections",
+  RUNTIME: "_manas_runtime",
+  CONFIG: "_manas_config"
+} as const;

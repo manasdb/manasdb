@@ -1,4 +1,4 @@
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 import dotenv from 'dotenv';
 dotenv.config();
 

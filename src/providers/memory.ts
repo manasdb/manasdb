@@ -100,11 +100,14 @@ export class MemoryProvider extends BaseProvider {
       .map(v => {
         const score = (MemoryEngine as any)._cosine(queryVector, v.vector);
         return {
+          database: 'memory',
+          project: v.project,
           score: score,
           contentDetails: [{
             id: v.id,
             documentId: v.parentId,
-            text: v.text
+            text: v.text,
+            project: v.project
           }]
         };
       })
@@ -134,10 +137,9 @@ export class MemoryProvider extends BaseProvider {
     return 0;
   }
 
-  async clear(): Promise<boolean> {
+  async clear(): Promise<void> {
     this.documents = this.documents.filter(d => d.project !== this.projectName);
     this.vectors = this.vectors.filter(v => v.project !== this.projectName);
-    return true;
   }
 
   async health(): Promise<any> {

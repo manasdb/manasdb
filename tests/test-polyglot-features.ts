@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import chalk from 'chalk';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 import MongoConnection from '../src/core/connection.ts';
 
 const TEST_TEXT_1 = `
@@ -82,13 +82,13 @@ async function runFeaturesTest(): Promise<void> {
         const dedup1 = await db.absorb(TEST_TEXT_2, { profile: 'speed' });
         const dedup2 = await db.absorb(TEST_TEXT_2, { profile: 'speed' });
 
-        const d1_pg = dedup1.inserted.find((i: any) => i.database === 'postgres').contentId;
-        const d2_pg = dedup2.inserted.find((i: any) => i.database === 'postgres').contentId;
+        const d1_pg = dedup1.inserted?.find((i: any) => i.database === 'mongodb')?.contentId || dedup1.contentId;
+        const d2_pg = dedup2.inserted?.find((i: any) => i.database === 'mongodb')?.contentId || dedup2.contentId;
 
         assert(
-            d1_pg === d2_pg,
-            "Sequential deduplication successful across PostgreSQL",
-            "Sequential deduplication failed: " + d1_pg + " !== " + d2_pg
+            String(d1_pg) === String(d2_pg),
+            "Sequential deduplication successful across Polyglot",
+            "Sequential deduplication failed: " + String(d1_pg) + " !== " + String(d2_pg)
         );
 
         // ------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import chalk from 'chalk';
-import ManasDB from '../src/index.ts';
+import { ManasDB } from '../src/index.ts';
 
 const TEST_TEXT_1 = `
 Acme Corp recently hired John Doe. His direct email is john.doe@acmecorp.com and his phone number is (800) 555-0199. 
