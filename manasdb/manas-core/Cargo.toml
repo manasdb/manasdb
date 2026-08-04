@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "crates/common",
+    "crates/vector",
+    "crates/tokenizer",
+    "crates/memory",
+    "crates/storage-contracts",
+    "crates/search",
+    "crates/pipeline",
+    "crates/runtime",
+    "crates/cognitive",
+    "crates/graph"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ManasDB Contributors"]
+license = "MIT"
+repository = "https://github.com/manasdb/manasdb"
+
+[workspace.dependencies]
+# Define shared dependencies here
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+criterion = "0.5"
