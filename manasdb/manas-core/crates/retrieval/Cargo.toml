@@ -1,0 +1,12 @@
+[package]
+name = "retrieval"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = { path = "../common" }
+vector = { path = "../vector" }
+tokenizer = { path = "../tokenizer" }
+memory = { path = "../memory" }
+storage-api = { path = "../storage-api" }
+thiserror.workspace = true

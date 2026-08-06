@@ -11,7 +11,7 @@ members = [
     "crates/runtime",
     "crates/cognitive",
     "crates/graph"
-]
+, "crates/retrieval"]
 resolver = "2"
 
 [workspace.package]
