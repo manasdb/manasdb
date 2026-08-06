@@ -7,6 +7,8 @@ pub mod interpret;
 pub mod learning;
 pub mod memory_evolution;
 pub mod observe;
+pub mod providers;
+pub mod llm;
 pub mod registry;
 pub mod salience;
 pub mod workflow;

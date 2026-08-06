@@ -5,16 +5,16 @@ use crate::observe::models::Observation;
 use super::engine::{InterpretationEngine, InterpretationResult};
 use super::errors::InterpretError;
 
-pub struct DefaultInterpretationEngine;
+pub struct DeterministicInterpretationEngine;
 
-impl DefaultInterpretationEngine {
+impl DeterministicInterpretationEngine {
     pub fn new() -> Self {
         Self
     }
 }
 
 #[async_trait]
-impl CognitiveEngine for DefaultInterpretationEngine {
+impl CognitiveEngine for DeterministicInterpretationEngine {
     type Input = Observation;
     type Output = InterpretationResult;
 
@@ -54,4 +54,4 @@ impl CognitiveEngine for DefaultInterpretationEngine {
 }
 
 #[async_trait]
-impl InterpretationEngine for DefaultInterpretationEngine {}
+impl InterpretationEngine for DeterministicInterpretationEngine {}

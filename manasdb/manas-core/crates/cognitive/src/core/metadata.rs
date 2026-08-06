@@ -7,8 +7,12 @@ pub struct EngineMetadata {
     pub duration_ms: u64,
     pub provider: String,
     pub model: Option<String>,
-    pub tokens: Option<u32>,
+    pub tokens_in: Option<u32>,
+    pub tokens_out: Option<u32>,
+    pub cached_tokens: Option<u32>,
+    pub reasoning_tokens: Option<u32>,
     pub cost: Option<f64>,
+    pub finish_reason: Option<String>,
 }
 
 impl EngineMetadata {
@@ -18,8 +22,12 @@ impl EngineMetadata {
             duration_ms,
             provider: provider.into(),
             model: None,
-            tokens: None,
+            tokens_in: None,
+            tokens_out: None,
+            cached_tokens: None,
+            reasoning_tokens: None,
             cost: None,
+            finish_reason: None,
         }
     }
 }

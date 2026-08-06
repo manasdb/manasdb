@@ -47,11 +47,11 @@ impl CapabilityRegistry {
         
         registry.register(
             CapabilityId::Observe, 
-            Capability::Observe(Arc::new(crate::observe::DefaultObservationEngine::new()))
+            Capability::Observe(Arc::new(crate::observe::DeterministicObservationEngine::new()))
         );
         registry.register(
             CapabilityId::Interpret, 
-            Capability::Interpret(Arc::new(crate::interpret::DefaultInterpretationEngine::new()))
+            Capability::Interpret(Arc::new(crate::interpret::DeterministicInterpretationEngine::new()))
         );
         registry.register(
             CapabilityId::Reasoning, 

@@ -127,10 +127,10 @@ fn test_engine_result_serialization() {
 async fn test_default_engine_no_panic() {
     use crate::core::traits::CognitiveEngine;
     use crate::core::context::EngineContext;
-    use crate::observe::DefaultObservationEngine;
+    use crate::observe::DeterministicObservationEngine;
     use crate::core::errors::CognitiveError;
 
-    let engine = DefaultObservationEngine::new();
+    let engine = DeterministicObservationEngine::new();
     let ctx = EngineContext::default();
     
     // Test valid input

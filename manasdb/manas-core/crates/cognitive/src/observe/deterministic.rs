@@ -4,16 +4,16 @@ use crate::observe::models::{Observation, ObservationSource};
 use super::engine::{ObservationEngine, ObserveResult};
 use super::errors::ObserveError;
 
-pub struct DefaultObservationEngine;
+pub struct DeterministicObservationEngine;
 
-impl DefaultObservationEngine {
+impl DeterministicObservationEngine {
     pub fn new() -> Self {
         Self
     }
 }
 
 #[async_trait]
-impl CognitiveEngine for DefaultObservationEngine {
+impl CognitiveEngine for DeterministicObservationEngine {
     type Input = String;
     type Output = ObserveResult;
 
@@ -48,4 +48,4 @@ impl CognitiveEngine for DefaultObservationEngine {
 }
 
 #[async_trait]
-impl ObservationEngine for DefaultObservationEngine {}
+impl ObservationEngine for DeterministicObservationEngine {}
