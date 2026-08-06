@@ -25,5 +25,16 @@ pub use state::{CognitiveState, StateMachine};
 pub use context::{WorkingMemory, GoalContext, SessionContext, ConversationContext};
 pub use registry::CapabilityRegistry;
 
+// Domain Models
+pub use observe::{Observation, ObservationSource};
+pub use interpret::{Fact, Evidence};
+pub use reasoning::Hypothesis;
+pub use belief::{Belief, MemoryDelta};
+pub use decision::Decision;
+pub use planning::{Goal, Plan, Action, TaskRequest};
+pub use reflection::{Reflection, LearningEvent};
+pub use policies::PolicyViolation;
+pub use constraints::ConstraintViolation;
+
 #[cfg(test)]
 mod tests;

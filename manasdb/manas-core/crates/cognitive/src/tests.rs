@@ -53,3 +53,30 @@ async fn test_provider_execution() {
     let int = interpreter.interpret(&obs).await.unwrap();
     assert_eq!(int, "Interpreted: Observed: hello");
 }
+
+use std::collections::HashMap;
+use crate::planning::{Plan, Action};
+
+#[test]
+fn test_domain_model_serialization() {
+    let mut params = HashMap::new();
+    params.insert("target".to_string(), "memory_alpha".to_string());
+    
+    let plan = Plan {
+        id: uuid::Uuid::new_v4(),
+        goal_id: uuid::Uuid::new_v4(),
+        actions: vec![
+            Action {
+                id: uuid::Uuid::new_v4(),
+                name: "Consolidate".to_string(),
+                parameters: params,
+            }
+        ],
+    };
+
+    let serialized = serde_json::to_string(&plan).unwrap();
+    let deserialized: Plan = serde_json::from_str(&serialized).unwrap();
+
+    assert_eq!(plan.id, deserialized.id);
+    assert_eq!(plan.actions[0].name, deserialized.actions[0].name);
+}
