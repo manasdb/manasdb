@@ -1,12 +1,12 @@
 pub mod belief;
 pub mod constraints;
 pub mod context;
+pub mod core;
 pub mod decision;
-pub mod errors;
 pub mod goals;
 pub mod interpret;
 pub mod learning;
-pub mod memory_management;
+pub mod memory_evolution;
 pub mod observe;
 pub mod orchestrator;
 pub mod planning;
@@ -19,7 +19,7 @@ pub mod salience;
 pub mod state;
 pub mod tasks;
 
-pub use errors::CognitiveError;
+pub use crate::core::errors::CognitiveError;
 pub use orchestrator::CognitiveOrchestrator;
 pub use state::{CognitiveState, StateMachine};
 pub use context::{WorkingMemory, GoalContext, SessionContext, ConversationContext};

@@ -1,1 +1,0 @@
-G:\projects\manasdb-ecosystem\manasdb-core\manasdb\manas-core\target\debug\libvector.rlib: G:\projects\manasdb-ecosystem\manasdb-core\manasdb\manas-core\crates\vector\src\errors.rs G:\projects\manasdb-ecosystem\manasdb-core\manasdb\manas-core\crates\vector\src\lib.rs G:\projects\manasdb-ecosystem\manasdb-core\manasdb\manas-core\crates\vector\src\math.rs

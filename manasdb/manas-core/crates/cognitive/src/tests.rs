@@ -6,7 +6,7 @@ use crate::registry::CapabilityRegistry;
 use crate::context::SessionContext;
 use crate::state::CognitiveState;
 use crate::providers::{ObserveProvider, InterpretProvider};
-use crate::errors::CognitiveError;
+use crate::core::errors::CognitiveError;
 
 struct MockObserveProvider;
 
@@ -79,4 +79,51 @@ fn test_domain_model_serialization() {
 
     assert_eq!(plan.id, deserialized.id);
     assert_eq!(plan.actions[0].name, deserialized.actions[0].name);
+}
+
+use crate::core::traits::CapabilityId;
+use crate::core::metadata::EngineMetadata;
+use crate::observe::models::{Observation, ObservationSource};
+use crate::observe::ObserveResult;
+
+#[test]
+fn test_engine_result_serialization() {
+    let metadata = EngineMetadata::new(CapabilityId::Observe, 42, "test-provider");
+    let obs = Observation::new(ObservationSource::System, "Test input");
+    
+    let result = ObserveResult {
+        observation: obs,
+        metadata,
+        warnings: vec![],
+    };
+
+    let serialized = serde_json::to_string(&result).unwrap();
+    let deserialized: ObserveResult = serde_json::from_str(&serialized).unwrap();
+    
+    assert_eq!(result.observation.content, deserialized.observation.content);
+    assert_eq!(result.metadata.duration_ms, deserialized.metadata.duration_ms);
+}
+
+#[tokio::test]
+async fn test_default_engine_no_panic() {
+    use crate::core::traits::CognitiveEngine;
+    use crate::core::context::EngineContext;
+    use crate::observe::DefaultObservationEngine;
+    use crate::core::errors::CognitiveError;
+
+    let engine = DefaultObservationEngine::new();
+    let ctx = EngineContext::default();
+    
+    // Test valid input
+    let res = engine.execute("valid input".to_string(), &ctx).await;
+    assert!(res.is_ok());
+    
+    // Test invalid input handling (should return CognitiveError, not panic)
+    let res2 = engine.execute("   ".to_string(), &ctx).await;
+    assert!(res2.is_err());
+    
+    match res2 {
+        Err(CognitiveError::ProviderError(_)) => {} // Expected mapped error
+        _ => panic!("Expected ProviderError (mapped from ObserveError)"),
+    }
 }

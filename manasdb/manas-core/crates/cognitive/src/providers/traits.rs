@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use crate::errors::CognitiveError;
+use crate::core::errors::CognitiveError;
 
 #[async_trait]
 pub trait ObserveProvider: Send + Sync {
