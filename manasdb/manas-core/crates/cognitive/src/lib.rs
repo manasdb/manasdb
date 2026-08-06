@@ -1,28 +1,25 @@
 pub mod belief;
-pub mod constraints;
 pub mod context;
+pub mod governance;
 pub mod core;
 pub mod decision;
-pub mod goals;
 pub mod interpret;
 pub mod learning;
 pub mod memory_evolution;
 pub mod observe;
 pub mod registry;
+pub mod salience;
 pub mod workflow;
 pub mod orchestrator;
 pub mod planning;
-pub mod policies;
 pub mod reasoning;
 pub mod reflection;
-pub mod salience;
 pub mod state;
-pub mod tasks;
 
 pub use crate::core::errors::CognitiveError;
 pub use orchestrator::CognitiveOrchestrator;
 pub use state::{CognitiveState, StateMachine};
-pub use context::{WorkingMemory, GoalContext, SessionContext, ConversationContext};
+pub use context::{WorkingMemory, WorkingContext};
 pub use registry::CapabilityRegistry;
 
 // Domain Models
@@ -33,8 +30,6 @@ pub use belief::{Belief, MemoryDelta};
 pub use decision::Decision;
 pub use planning::{Goal, Plan, Action, TaskRequest};
 pub use reflection::{Reflection, LearningEvent};
-pub use policies::PolicyViolation;
-pub use constraints::ConstraintViolation;
 
 #[cfg(test)]
 mod tests;

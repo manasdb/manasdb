@@ -4,6 +4,8 @@ use crate::core::types::{Stimulus, CognitiveResult, TelemetryData, ExecutionTrac
 use std::sync::Arc;
 use std::collections::HashMap;
 
+use crate::context::WorkingMemory;
+
 pub struct WorkflowExecutor {
     registry: Arc<CapabilityRegistry>,
 }
@@ -13,7 +15,7 @@ impl WorkflowExecutor {
         Self { registry }
     }
     
-    pub async fn execute(&self, _stimulus: Stimulus, workflow: Workflow) -> Result<CognitiveResult, String> {
+    pub async fn execute(&self, _stimulus: Stimulus, workflow: Workflow, _memory: &mut WorkingMemory) -> Result<CognitiveResult, String> {
         let mut executed_nodes = Vec::new();
         let mut current_node_id = workflow.start_node_id.clone();
         

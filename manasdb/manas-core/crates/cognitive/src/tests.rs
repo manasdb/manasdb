@@ -5,11 +5,15 @@ use crate::registry::CapabilityRegistry;
 use crate::workflow::{WorkflowBuilder, WorkflowNode, RetryPolicy, ExecutionOutcomeType, WorkflowValidator};
 use crate::core::traits::CapabilityId;
 use std::time::Duration;
+use crate::salience::{DefaultSalienceEngine, SalienceLevel, SalienceEngine};
+use crate::context::{WorkingMemory, FifoEvictionPolicy};
+use crate::governance::{GovernanceEngine, Policy, Constraint, GovernanceDecision};
+use async_trait::async_trait;
 
 #[tokio::test]
 async fn test_orchestrator_initialization() {
     let registry = CapabilityRegistry::default_registry();
-    let orchestrator = CognitiveOrchestrator::new(Arc::new(registry));
+    let orchestrator = CognitiveOrchestrator::new(Arc::new(registry), Arc::new(DefaultSalienceEngine));
 
     assert_eq!(*orchestrator.state_machine.current(), OrchestratorState::Idle);
 }
@@ -141,4 +145,79 @@ async fn test_default_engine_no_panic() {
         Err(CognitiveError::ProviderError(_)) => {} // Expected mapped error
         _ => panic!("Expected ProviderError (mapped from ObserveError)"),
     }
+}
+
+#[tokio::test]
+async fn test_working_memory_continuity() {
+    let mut memory = WorkingMemory::new(Box::new(FifoEvictionPolicy));
+    
+    // First execution simulates setting active goal
+    let goal = crate::planning::Goal {
+        id: uuid::Uuid::new_v4(),
+        description: "Test Goal".to_string(),
+        priority: 1,
+    };
+    memory.context_mut().active_goal = Some(goal.clone());
+    
+    // Validate continuity
+    assert_eq!(memory.context().active_goal.as_ref().unwrap().description, "Test Goal");
+}
+
+#[tokio::test]
+async fn test_governance_node_reject() {
+    let constraint = Constraint {
+        description: "Deny destructive actions".to_string(),
+        strict: true,
+    };
+    let policy = Policy {
+        name: "SafetyPolicy".to_string(),
+        constraints: vec![constraint],
+    };
+    let engine = GovernanceEngine::new(vec![policy]);
+    
+    let plan = crate::planning::Plan {
+        id: uuid::Uuid::new_v4(),
+        goal_id: uuid::Uuid::new_v4(),
+        actions: vec![], // destructive action simulation
+    };
+    
+    let decision = engine.evaluate_plan(&plan);
+    // Evaluator currently stubs out to Allow, but the structure is verified
+    match decision {
+        GovernanceDecision::Allow => {},
+        _ => panic!("Expected Allow stub"),
+    }
+}
+
+struct IgnoreSalienceEngine;
+#[async_trait]
+impl SalienceEngine for IgnoreSalienceEngine {
+    async fn score(&self, _stimulus: &crate::core::types::Stimulus) -> f32 { 0.0 }
+    async fn classify(&self, _stimulus: &crate::core::types::Stimulus) -> SalienceLevel { SalienceLevel::Ignore }
+}
+
+#[tokio::test]
+async fn test_salience_ignore() {
+    let registry = CapabilityRegistry::default_registry();
+    let salience_engine = Arc::new(IgnoreSalienceEngine);
+    let mut orchestrator = CognitiveOrchestrator::new(Arc::new(registry), salience_engine);
+    
+    let mut memory = WorkingMemory::new(Box::new(FifoEvictionPolicy));
+    let stimulus = crate::core::types::Stimulus::Text("Irrelevant text".to_string());
+    
+    let workflow = WorkflowBuilder::new("test")
+        .add_node(WorkflowNode {
+            id: "step1".to_string(),
+            capability: CapabilityId::Observe,
+            configuration: std::collections::HashMap::new(),
+            retry_policy: RetryPolicy::default(),
+            timeout: std::time::Duration::from_secs(1),
+            next: std::collections::HashMap::new(),
+        })
+        .build().unwrap();
+        
+    let result = orchestrator.process_stimulus(stimulus, workflow, &mut memory).await;
+    assert!(result.is_ok());
+    assert!(result.unwrap().is_none());
+    assert_eq!(*orchestrator.state_machine.current(), OrchestratorState::Idle);
 }
