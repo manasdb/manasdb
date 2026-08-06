@@ -1,60 +1,76 @@
 use std::sync::Arc;
-use async_trait::async_trait;
-
-use crate::orchestrator::CognitiveOrchestrator;
+use std::collections::HashMap;
+use crate::orchestrator::{CognitiveOrchestrator, OrchestratorState};
 use crate::registry::CapabilityRegistry;
-use crate::context::SessionContext;
-use crate::state::CognitiveState;
-use crate::providers::{ObserveProvider, InterpretProvider};
-use crate::core::errors::CognitiveError;
-
-struct MockObserveProvider;
-
-#[async_trait]
-impl ObserveProvider for MockObserveProvider {
-    async fn observe(&self, input: &str) -> Result<String, CognitiveError> {
-        Ok(format!("Observed: {}", input))
-    }
-}
-
-struct MockInterpretProvider;
-
-#[async_trait]
-impl InterpretProvider for MockInterpretProvider {
-    async fn interpret(&self, observation: &str) -> Result<String, CognitiveError> {
-        Ok(format!("Interpreted: {}", observation))
-    }
-}
+use crate::workflow::{WorkflowBuilder, WorkflowNode, RetryPolicy, ExecutionOutcomeType, WorkflowValidator};
+use crate::core::traits::CapabilityId;
+use std::time::Duration;
 
 #[tokio::test]
 async fn test_orchestrator_initialization() {
-    let mut registry = CapabilityRegistry::new();
-    registry.observe_providers.push(Arc::new(MockObserveProvider));
-    registry.interpret_providers.push(Arc::new(MockInterpretProvider));
+    let registry = CapabilityRegistry::default_registry();
+    let orchestrator = CognitiveOrchestrator::new(Arc::new(registry));
 
-    let context = SessionContext::default();
-    
-    let mut orchestrator = CognitiveOrchestrator::new(Arc::new(registry), context);
-
-    assert_eq!(orchestrator.state_machine.current_state, CognitiveState::Idle);
-
-    orchestrator.state_machine.transition_to(CognitiveState::Observing);
-    assert_eq!(orchestrator.state_machine.current_state, CognitiveState::Observing);
+    assert_eq!(*orchestrator.state_machine.current(), OrchestratorState::Idle);
 }
 
 #[tokio::test]
-async fn test_provider_execution() {
-    let observer = MockObserveProvider;
-    let interpreter = MockInterpretProvider;
-
-    let obs = observer.observe("hello").await.unwrap();
-    assert_eq!(obs, "Observed: hello");
-
-    let int = interpreter.interpret(&obs).await.unwrap();
-    assert_eq!(int, "Interpreted: Observed: hello");
+async fn test_workflow_validation() {
+    let registry = CapabilityRegistry::default_registry();
+    
+    let mut node1 = WorkflowNode {
+        id: "step1".to_string(),
+        capability: CapabilityId::Observe,
+        configuration: HashMap::new(),
+        retry_policy: RetryPolicy::default(),
+        timeout: Duration::from_secs(5),
+        next: HashMap::new(),
+    };
+    node1.next.insert(ExecutionOutcomeType::Continue, "step2".to_string());
+    
+    let node2 = WorkflowNode {
+        id: "step2".to_string(),
+        capability: CapabilityId::Interpret,
+        configuration: HashMap::new(),
+        retry_policy: RetryPolicy::default(),
+        timeout: Duration::from_secs(5),
+        next: HashMap::new(),
+    };
+    
+    let workflow = WorkflowBuilder::new("test-workflow")
+        .add_node(node1)
+        .add_node(node2)
+        .build()
+        .unwrap();
+        
+    let validation = WorkflowValidator::validate(&workflow, &registry);
+    assert!(validation.is_ok());
 }
 
-use std::collections::HashMap;
+#[tokio::test]
+async fn test_workflow_validation_fails_on_missing_node() {
+    let registry = CapabilityRegistry::default_registry();
+    
+    let mut node1 = WorkflowNode {
+        id: "step1".to_string(),
+        capability: CapabilityId::Observe,
+        configuration: HashMap::new(),
+        retry_policy: RetryPolicy::default(),
+        timeout: Duration::from_secs(5),
+        next: HashMap::new(),
+    };
+    node1.next.insert(ExecutionOutcomeType::Continue, "missing_step".to_string());
+    
+    let workflow = WorkflowBuilder::new("test-workflow")
+        .add_node(node1)
+        .build()
+        .unwrap();
+        
+    let validation = WorkflowValidator::validate(&workflow, &registry);
+    assert!(validation.is_err());
+    assert!(validation.unwrap_err().contains("missing_step"));
+}
+
 use crate::planning::{Plan, Action};
 
 #[test]
@@ -81,7 +97,6 @@ fn test_domain_model_serialization() {
     assert_eq!(plan.actions[0].name, deserialized.actions[0].name);
 }
 
-use crate::core::traits::CapabilityId;
 use crate::core::metadata::EngineMetadata;
 use crate::observe::models::{Observation, ObservationSource};
 use crate::observe::ObserveResult;

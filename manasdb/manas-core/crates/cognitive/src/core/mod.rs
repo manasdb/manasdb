@@ -2,6 +2,7 @@ pub mod context;
 pub mod errors;
 pub mod metadata;
 pub mod traits;
+pub mod types;
 
 pub use context::{EngineContext, PlatformVersion};
 pub use errors::{CognitiveError, Warning};
