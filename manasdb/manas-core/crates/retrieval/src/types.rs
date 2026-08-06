@@ -89,9 +89,8 @@ mod tests {
 
     #[test]
     fn test_candidate_state_transitions() {
-        use uuid::Uuid;
-        let memory_id = MemoryId(Uuid::new_v4());
-        let candidate = Candidate::<Retrieved>::new(memory_id, 0.8);
+        let memory_id = MemoryId::new("test-memory-id");
+        let candidate = Candidate::<Retrieved>::new(memory_id.clone(), 0.8);
         assert_eq!(candidate.score, 0.8);
         assert_eq!(candidate.memory_id, memory_id);
 

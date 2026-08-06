@@ -13,7 +13,7 @@ impl PipelineExecutor {
         Self { registry }
     }
 
-    pub async fn execute(&self, mut execution: Execution) -> Result<PipelineData, PipelineError> {
+    pub async fn execute(&self, execution: Execution) -> Result<PipelineData, PipelineError> {
         let mut current_data = execution.input.clone();
 
         for stage_id in &execution.definition.stage_ids {
