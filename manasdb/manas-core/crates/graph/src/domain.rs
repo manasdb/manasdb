@@ -58,9 +58,3 @@ impl GraphEdge {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GraphSnapshot {
-    pub nodes: Vec<GraphNode>,
-    pub edges: Vec<GraphEdge>,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
-}
