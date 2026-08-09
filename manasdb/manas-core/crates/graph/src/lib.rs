@@ -5,6 +5,8 @@ pub mod schema;
 pub mod types;
 pub mod memory;
 pub mod algorithms;
+pub mod operations;
+pub mod query;
 
 #[cfg(test)]
 mod tests;
