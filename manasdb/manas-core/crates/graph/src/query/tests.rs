@@ -19,7 +19,8 @@ fn test_query_pipeline_integration() {
     let query = GraphQueryBuilder::new()
         .with_node_filter(NodeFilter::ByKind(NodeKind::Person))
         .max_depth(2)
-        .build();
+        .build()
+        .unwrap();
         
     assert_eq!(query.depth_limit, Some(2));
     
@@ -37,14 +38,16 @@ fn test_planner_strategy_selection() {
     // Test TraversalScan selection
     let query1 = GraphQueryBuilder::new()
         .start_from(vec![crate::identity::NodeId::new()])
-        .build();
+        .build()
+        .unwrap();
     let plan1 = QueryPlanner::plan(query1);
     assert_eq!(plan1.strategy, ExecutionStrategy::TraversalScan);
     
     // Test TemporalScan selection
     let query2 = GraphQueryBuilder::new()
         .with_temporal_filter(TemporalFilter::After(chrono::Utc::now()))
-        .build();
+        .build()
+        .unwrap();
     let plan2 = QueryPlanner::plan(query2);
     assert_eq!(plan2.strategy, ExecutionStrategy::TemporalScan);
 }
