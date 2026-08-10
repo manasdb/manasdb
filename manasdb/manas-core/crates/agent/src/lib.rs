@@ -6,6 +6,7 @@ pub mod models;
 pub mod validation;
 pub mod planning;
 pub mod scheduling;
+pub mod tools;
 
 pub use capabilities::*;
 pub use ids::*;
@@ -15,6 +16,7 @@ pub use models::*;
 pub use validation::*;
 pub use planning::*;
 pub use scheduling::*;
+pub use tools::*;
 
 #[cfg(test)]
 mod tests;

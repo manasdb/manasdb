@@ -228,4 +228,98 @@ mod tests {
         assert_eq!(sorted.len(), num_nodes);
         assert!(!graph.has_cycle()); // internal util method test indirectly
     }
+
+    use crate::tools::{Tool, ToolSchema, ToolResult, ToolRegistry, ToolExecutor};
+    use crate::models::permissions::ToolPermission;
+    use std::sync::Arc;
+
+    struct MockTool;
+    impl Tool for MockTool {
+        fn name(&self) -> &str { "mock_tool" }
+        fn description(&self) -> &str { "A mock tool" }
+        fn schema(&self) -> ToolSchema {
+            ToolSchema { name: "mock_tool".into(), description: "desc".into(), parameters: serde_json::json!({}) }
+        }
+        fn execute(&self, _args: &serde_json::Value, _context: &AgentContext) -> ToolResult {
+            ToolResult::Success(serde_json::json!("mock_success"))
+        }
+    }
+
+    struct TimeoutTool;
+    impl Tool for TimeoutTool {
+        fn name(&self) -> &str { "timeout_tool" }
+        fn description(&self) -> &str { "times out" }
+        fn schema(&self) -> ToolSchema {
+            ToolSchema { name: "timeout_tool".into(), description: "desc".into(), parameters: serde_json::json!({}) }
+        }
+        fn execute(&self, _args: &serde_json::Value, _context: &AgentContext) -> ToolResult {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            ToolResult::Success(serde_json::json!("done"))
+        }
+    }
+
+    #[test]
+    fn test_tool_registration() {
+        let registry = ToolRegistry::new();
+        registry.register(Arc::new(MockTool));
+        let schemas = registry.schemas();
+        assert_eq!(schemas.len(), 1);
+        assert_eq!(schemas[0].name, "mock_tool");
+    }
+
+    #[test]
+    fn test_tool_execution_success() {
+        let registry = ToolRegistry::new();
+        registry.register(Arc::new(MockTool));
+        
+        let mut context = AgentContext::default();
+        context.tool_permissions.allowed_tools.push(ToolPermission::ExecuteTool("mock_tool".into()));
+
+        let executor = ToolExecutor::new(&registry);
+        let result = executor.execute("mock_tool", serde_json::json!({}), context);
+        
+        if let ToolResult::Success(val) = result {
+            assert_eq!(val, "mock_success");
+        } else {
+            panic!("Expected success");
+        }
+    }
+
+    #[test]
+    fn test_tool_permission_denied() {
+        let registry = ToolRegistry::new();
+        registry.register(Arc::new(MockTool));
+        
+        // Context without ExecuteTool permission
+        let context = AgentContext::default();
+        
+        let executor = ToolExecutor::new(&registry);
+        let result = executor.execute("mock_tool", serde_json::json!({}), context);
+        
+        if let ToolResult::SystemError(err) = result {
+            assert!(err.contains("Agent lacks permission"));
+        } else {
+            panic!("Expected permission denial");
+        }
+    }
+
+    #[test]
+    fn test_tool_sandbox_timeout() {
+        let registry = ToolRegistry::new();
+        registry.register(Arc::new(TimeoutTool));
+        
+        let mut context = AgentContext::default();
+        context.tool_permissions.allowed_tools.push(ToolPermission::ExecuteTool("timeout_tool".into()));
+        // Set timeout to 10ms, but tool sleeps for 50ms
+        context.runtime_metadata.labels.insert("timeout_ms".to_string(), "10".to_string());
+
+        let executor = ToolExecutor::new(&registry);
+        let result = executor.execute("timeout_tool", serde_json::json!({}), context);
+        
+        if let ToolResult::SystemError(err) = result {
+            assert!(err.contains("timed out"));
+        } else {
+            panic!("Expected timeout error, got {:?}", result);
+        }
+    }
 }

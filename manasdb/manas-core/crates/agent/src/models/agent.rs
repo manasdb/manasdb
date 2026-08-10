@@ -25,19 +25,19 @@ pub struct AgentInstance {
     pub context: AgentContext,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct WorkingMemoryState {
     pub size_bytes: u64,
     pub active_items: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct KnowledgeState {
     pub active_nodes: u32,
     pub active_edges: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ToolPermissions {
     pub allowed_tools: Vec<ToolPermission>,
 }
@@ -52,4 +52,19 @@ pub struct AgentContext {
     pub knowledge_snapshot: KnowledgeState,
     pub tool_permissions: ToolPermissions,
     pub runtime_metadata: AgentMetadata,
+}
+
+impl Default for AgentContext {
+    fn default() -> Self {
+        Self {
+            session_id: SessionId::new(),
+            mission_id: MissionId::new(),
+            active_goal: None,
+            execution_trace: ExecutionTrace::default(),
+            working_memory_snapshot: WorkingMemoryState::default(),
+            knowledge_snapshot: KnowledgeState::default(),
+            tool_permissions: ToolPermissions::default(),
+            runtime_metadata: AgentMetadata::default(),
+        }
+    }
 }
