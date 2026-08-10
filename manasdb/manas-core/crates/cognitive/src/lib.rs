@@ -5,6 +5,7 @@ pub mod core;
 pub mod decision;
 pub mod interpret;
 pub mod learning;
+pub mod knowledge;
 pub mod memory_evolution;
 pub mod observe;
 pub mod providers;

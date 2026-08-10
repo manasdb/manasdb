@@ -5,7 +5,7 @@ use crate::observe::models::Observation;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InterpretationResult {
-    pub facts: Vec<Fact>,
+    pub knowledge_facts: crate::knowledge::models::KnowledgeFacts,
     pub metadata: EngineMetadata,
     pub warnings: Vec<Warning>,
 }

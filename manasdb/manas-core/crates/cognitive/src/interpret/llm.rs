@@ -41,7 +41,7 @@ impl CognitiveEngine for LlmInterpretationEngine {
         let facts: Vec<Fact> = parser.parse(&response.content).unwrap_or_default();
             
         Ok(InterpretationResult {
-            facts,
+            knowledge_facts: crate::knowledge::models::KnowledgeFacts { new_facts: facts },
             metadata,
             warnings: vec![],
         })

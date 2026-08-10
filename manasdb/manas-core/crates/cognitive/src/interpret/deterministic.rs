@@ -46,7 +46,7 @@ impl CognitiveEngine for DeterministicInterpretationEngine {
         );
 
         Ok(InterpretationResult {
-            facts: vec![fact],
+            knowledge_facts: crate::knowledge::models::KnowledgeFacts { new_facts: vec![fact] },
             metadata,
             warnings: vec![],
         })

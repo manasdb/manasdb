@@ -5,11 +5,19 @@ use crate::reasoning::models::Hypothesis;
 use super::engine::{ReasoningEngine, ReasoningResult};
 use super::errors::ReasoningError;
 
-pub struct DefaultReasoningEngine;
+use crate::knowledge::query::KnowledgeQueryService;
+
+pub struct DefaultReasoningEngine {
+    query_service: Option<Box<dyn KnowledgeQueryService>>,
+}
 
 impl DefaultReasoningEngine {
     pub fn new() -> Self {
-        Self
+        Self { query_service: None }
+    }
+    
+    pub fn with_query_service(query_service: Box<dyn KnowledgeQueryService>) -> Self {
+        Self { query_service: Some(query_service) }
     }
 }
 
