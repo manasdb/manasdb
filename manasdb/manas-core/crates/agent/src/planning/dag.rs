@@ -152,7 +152,7 @@ impl TaskGraph {
             .collect()
     }
 
-    fn has_cycle(&self) -> bool {
+    pub(crate) fn has_cycle(&self) -> bool {
         let mut visited = HashSet::new();
         let mut rec_stack = HashSet::new();
 

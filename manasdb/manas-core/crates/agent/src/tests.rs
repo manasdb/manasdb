@@ -165,4 +165,67 @@ mod tests {
         let unblocked = graph.get_unblocked_tasks();
         assert_eq!(unblocked.len(), 2);
     }
+
+    #[test]
+    fn test_topological_sort() {
+        let mut graph = TaskGraph::new();
+        let make_node = |t: &Task| TaskNode {
+            task: t.clone(),
+            scheduling_metadata: TaskSchedulingMetadata { readiness: TaskReadiness::WaitingDependency, retry_count: 0 },
+            runtime_metadata: HashMap::new(),
+        };
+
+        let t1 = Task::default();
+        let t2 = Task::default();
+        let t3 = Task::default();
+
+        graph.add_task(make_node(&t1));
+        graph.add_task(make_node(&t2));
+        graph.add_task(make_node(&t3));
+
+        // t1 -> t2 -> t3
+        let make_edge = |from, to| DependencyEdge {
+            from, to, dependency_type: DependencyType::FinishToStart, condition: None, metadata: HashMap::new()
+        };
+        graph.add_dependency(make_edge(t1.id, t2.id)).unwrap();
+        graph.add_dependency(make_edge(t2.id, t3.id)).unwrap();
+
+        let sort_result = graph.topological_sort().unwrap();
+        
+        // Output order should be t1, t2, t3
+        assert_eq!(sort_result, vec![t1.id, t2.id, t3.id]);
+    }
+
+    #[test]
+    fn test_large_dag_performance() {
+        let mut graph = TaskGraph::new();
+        let num_nodes = 1000;
+        let mut prev_task: Option<TaskId> = None;
+
+        for _ in 0..num_nodes {
+            let t = Task::default();
+            let node = TaskNode {
+                task: t.clone(),
+                scheduling_metadata: TaskSchedulingMetadata { readiness: TaskReadiness::WaitingDependency, retry_count: 0 },
+                runtime_metadata: HashMap::new(),
+            };
+            graph.add_task(node);
+
+            if let Some(prev) = prev_task {
+                let edge = DependencyEdge {
+                    from: prev,
+                    to: t.id,
+                    dependency_type: DependencyType::FinishToStart,
+                    condition: None,
+                    metadata: HashMap::new(),
+                };
+                graph.add_dependency(edge).unwrap();
+            }
+            prev_task = Some(t.id);
+        }
+
+        let sorted = graph.topological_sort().unwrap();
+        assert_eq!(sorted.len(), num_nodes);
+        assert!(!graph.has_cycle()); // internal util method test indirectly
+    }
 }
