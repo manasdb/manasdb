@@ -78,4 +78,91 @@ mod tests {
         assert_eq!(parsed["priority"], "High");
         assert_eq!(parsed["status"], "Pending");
     }
+
+    use crate::planning::dag::{TaskGraph, TaskNode, DependencyEdge, DependencyType, TaskSchedulingMetadata};
+    use crate::scheduling::{TaskReadiness, DefaultScheduler, Scheduler};
+
+    #[test]
+    fn test_dag_cycle_detection() {
+        let mut graph = TaskGraph::new();
+        let t1 = Task::default();
+        let t2 = Task::default();
+        
+        let mut n1 = TaskNode {
+            task: t1.clone(),
+            scheduling_metadata: TaskSchedulingMetadata { readiness: TaskReadiness::Ready, retry_count: 0 },
+            runtime_metadata: HashMap::new(),
+        };
+        let mut n2 = TaskNode {
+            task: t2.clone(),
+            scheduling_metadata: TaskSchedulingMetadata { readiness: TaskReadiness::Ready, retry_count: 0 },
+            runtime_metadata: HashMap::new(),
+        };
+
+        graph.add_task(n1);
+        graph.add_task(n2);
+
+        graph.add_dependency(DependencyEdge {
+            from: t1.id,
+            to: t2.id,
+            dependency_type: DependencyType::FinishToStart,
+            condition: None,
+            metadata: HashMap::new(),
+        }).unwrap();
+
+        let res = graph.add_dependency(DependencyEdge {
+            from: t2.id,
+            to: t1.id,
+            dependency_type: DependencyType::FinishToStart,
+            condition: None,
+            metadata: HashMap::new(),
+        });
+
+        assert!(res.is_err()); // Cycle detected
+    }
+
+    #[test]
+    fn test_parallel_branches_unblocking() {
+        let mut graph = TaskGraph::new();
+        let a = Task::default();
+        let b = Task::default();
+        let c = Task::default();
+
+        let make_node = |t: &Task| TaskNode {
+            task: t.clone(),
+            scheduling_metadata: TaskSchedulingMetadata { readiness: TaskReadiness::WaitingDependency, retry_count: 0 },
+            runtime_metadata: HashMap::new(),
+        };
+
+        let na = make_node(&a);
+        
+        graph.add_task(na);
+        graph.add_task(make_node(&b));
+        graph.add_task(make_node(&c));
+
+        // A -> B, A -> C
+        let make_edge = |from, to| DependencyEdge {
+            from, to, dependency_type: DependencyType::FinishToStart, condition: None, metadata: HashMap::new()
+        };
+        graph.add_dependency(make_edge(a.id, b.id)).unwrap();
+        graph.add_dependency(make_edge(a.id, c.id)).unwrap();
+
+        let mut scheduler = DefaultScheduler::new();
+        
+        // A is ready
+        let events = scheduler.step(&mut graph);
+        assert_eq!(events.len(), 1); 
+
+        // Execute A
+        let next = scheduler.next_task(&graph).unwrap();
+        assert_eq!(next, a.id);
+
+        // Complete A, should unblock B and C
+        let complete_events = scheduler.complete_task(next, &mut graph);
+        // complete A, ready B, ready C
+        assert_eq!(complete_events.len(), 3); 
+        
+        let unblocked = graph.get_unblocked_tasks();
+        assert_eq!(unblocked.len(), 2);
+    }
 }
