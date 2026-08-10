@@ -47,6 +47,7 @@ fn test_hybrid_query_planner() {
 fn test_fusion_strategy_intersection() {
     // Generate snapshot with 5 nodes
     let mut snapshot = GraphSnapshot {
+        version: crate::memory::snapshot::GraphVersion::default(),
         nodes: vec![],
         edges: vec![],
         timestamp: chrono::Utc::now(),

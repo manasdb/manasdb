@@ -8,6 +8,7 @@ pub mod algorithms;
 pub mod operations;
 pub mod query;
 pub mod semantic;
+pub mod persistence;
 
 #[cfg(test)]
 mod tests;

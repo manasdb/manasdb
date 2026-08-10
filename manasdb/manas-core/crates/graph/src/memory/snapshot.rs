@@ -4,8 +4,18 @@ use crate::domain::{GraphEdge, GraphNode};
 use super::adjacency::AdjacencyList;
 use super::index::GraphIndex;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct GraphVersion(pub u64);
+
+impl Default for GraphVersion {
+    fn default() -> Self {
+        Self(0)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GraphSnapshot {
+    pub version: GraphVersion,
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
     pub timestamp: chrono::DateTime<chrono::Utc>,

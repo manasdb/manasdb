@@ -50,6 +50,7 @@ pub fn subgraph(snapshot: &GraphSnapshot, node_ids: &[NodeId]) -> GraphSnapshot 
     }
 
     GraphSnapshot {
+        version: crate::memory::snapshot::GraphVersion(1),
         nodes,
         edges,
         timestamp: chrono::Utc::now(),

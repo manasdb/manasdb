@@ -10,6 +10,7 @@ use super::merge::{GraphMerge, MergeStrategy};
 #[test]
 fn test_immutable_builder() {
     let mut snapshot = GraphSnapshot {
+        version: crate::memory::snapshot::GraphVersion::default(),
         nodes: vec![],
         edges: vec![],
         timestamp: chrono::Utc::now(),
@@ -29,12 +30,12 @@ fn test_immutable_builder() {
     
     // Commit to a new snapshot
     let next_snapshot = builder.commit();
-    assert_eq!(next_snapshot.nodes.len(), 2);
+    assert_eq!(next_snapshot.0.nodes.len(), 2);
 }
 
 #[test]
 fn test_crud_operations() {
-    let snapshot = GraphSnapshot { nodes: vec![], edges: vec![], timestamp: chrono::Utc::now() };
+    let snapshot = GraphSnapshot { version: crate::memory::snapshot::GraphVersion::default(), nodes: vec![], edges: vec![], timestamp: chrono::Utc::now() };
     let mut builder = GraphBuilder::from_snapshot(&snapshot);
     
     let node1 = GraphNode::new(NodeKind::Person);
@@ -49,13 +50,13 @@ fn test_crud_operations() {
     assert!(builder.delete_node(&node2.id));
     // Verify edge is also deleted because node2 was deleted
     let next_snapshot = builder.commit();
-    assert_eq!(next_snapshot.nodes.len(), 1);
-    assert_eq!(next_snapshot.edges.len(), 0);
+    assert_eq!(next_snapshot.0.nodes.len(), 1);
+    assert_eq!(next_snapshot.0.edges.len(), 0);
 }
 
 #[test]
 fn test_merge_semantics_by_business_key() {
-    let snapshot = GraphSnapshot { nodes: vec![], edges: vec![], timestamp: chrono::Utc::now() };
+    let snapshot = GraphSnapshot { version: crate::memory::snapshot::GraphVersion::default(), nodes: vec![], edges: vec![], timestamp: chrono::Utc::now() };
     let mut builder = GraphBuilder::from_snapshot(&snapshot);
     
     let mut node1 = GraphNode::new(NodeKind::Person);
@@ -75,9 +76,9 @@ fn test_merge_semantics_by_business_key() {
     assert_eq!(id1, id2);
     
     let next_snapshot = builder.commit();
-    assert_eq!(next_snapshot.nodes.len(), 1);
+    assert_eq!(next_snapshot.0.nodes.len(), 1);
     
-    let n = &next_snapshot.nodes[0];
+    let n = &next_snapshot.0.nodes[0];
     if let Some(crate::domain::GraphProperty::String(name)) = n.properties.get("name") {
         assert_eq!(name, "Alice Updated");
     } else {

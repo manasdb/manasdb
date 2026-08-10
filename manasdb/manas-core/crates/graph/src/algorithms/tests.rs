@@ -22,6 +22,7 @@ fn generate_random_snapshot(num_nodes: usize, num_edges: usize) -> GraphSnapshot
     }
     
     GraphSnapshot {
+        version: crate::memory::snapshot::GraphVersion::default(),
         nodes,
         edges,
         timestamp: chrono::Utc::now(),

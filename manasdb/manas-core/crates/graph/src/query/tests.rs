@@ -10,6 +10,7 @@ use super::executor::QueryExecutor;
 #[test]
 fn test_query_pipeline_integration() {
     let snapshot = GraphSnapshot {
+        version: crate::memory::snapshot::GraphVersion::default(),
         nodes: vec![],
         edges: vec![],
         timestamp: chrono::Utc::now(),
