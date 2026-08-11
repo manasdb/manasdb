@@ -13,6 +13,7 @@ pub trait Scheduler {
 
 pub struct DefaultScheduler {
     queue: Box<dyn TaskQueue>,
+    #[allow(dead_code)]
     strategy: Box<dyn SchedulingStrategy>,
 }
 
@@ -49,7 +50,7 @@ impl Scheduler for DefaultScheduler {
         events
     }
 
-    fn next_task(&mut self, graph: &TaskGraph) -> Option<TaskId> {
+    fn next_task(&mut self, _graph: &TaskGraph) -> Option<TaskId> {
         // Here we could dump queue to slice, pass to strategy, and remove selected.
         // For simplicity in DefaultScheduler, just pop.
         self.queue.pop()
@@ -64,7 +65,7 @@ impl Scheduler for DefaultScheduler {
         events
     }
 
-    fn fail_task(&mut self, id: TaskId, reason: String, graph: &mut TaskGraph) -> Vec<SchedulingEvents> {
+    fn fail_task(&mut self, id: TaskId, reason: String, _graph: &mut TaskGraph) -> Vec<SchedulingEvents> {
         // Block children? For now just fail.
         vec![SchedulingEvents::TaskFailed(id, reason)]
     }

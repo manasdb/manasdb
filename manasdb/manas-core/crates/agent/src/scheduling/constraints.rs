@@ -4,7 +4,7 @@ use crate::models::execution::ResourceBudget;
 pub struct ConstraintEvaluator;
 
 impl ConstraintEvaluator {
-    pub fn evaluate(task: &Task, current_budget: &ResourceBudget) -> Result<(), String> {
+    pub fn evaluate(_task: &Task, _current_budget: &ResourceBudget) -> Result<(), String> {
         // Find if this task has its own constraints (assuming task inherited them from goal or they are passed down)
         // For 10B, we can just stub this to return Ok for now, simulating that constraints are met.
         Ok(())
