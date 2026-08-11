@@ -8,6 +8,7 @@ pub mod validation;
 pub mod planning;
 pub mod scheduling;
 pub mod tools;
+pub mod coordination;
 
 pub use capabilities::*;
 pub use ids::*;

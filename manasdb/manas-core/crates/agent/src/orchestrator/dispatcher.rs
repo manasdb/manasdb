@@ -1,19 +1,22 @@
-use crate::models::task::Task;
-use crate::orchestrator::services::ToolService;
-use crate::tools::ToolResult;
+use crate::coordination::assignment::TaskAssignment;
+use crate::coordination::runtime::{CoordinationRuntime, CoordinationResult};
+use crate::coordination::context::CoordinationContext;
 use std::sync::Arc;
 
 pub struct TaskDispatcher {
-    tool_service: Arc<dyn ToolService>,
+    coordination_runtime: Arc<CoordinationRuntime>,
 }
 
 impl TaskDispatcher {
-    pub fn new(tool_service: Arc<dyn ToolService>) -> Self {
-        Self { tool_service }
+    pub fn new(coordination_runtime: Arc<CoordinationRuntime>) -> Self {
+        Self { coordination_runtime }
     }
 
-    pub async fn dispatch(&self, task: &Task) -> Result<ToolResult, String> {
-        // Here we could route based on task properties in Phase 10E
-        self.tool_service.execute(task).await
+    pub async fn dispatch(
+        &self, 
+        assignment: &TaskAssignment, 
+        context: &mut CoordinationContext
+    ) -> Result<CoordinationResult, String> {
+        self.coordination_runtime.coordinate(assignment, context).await
     }
 }

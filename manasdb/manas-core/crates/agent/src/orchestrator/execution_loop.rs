@@ -43,7 +43,9 @@ impl ExecutionLoop {
                 
                 // Simulate task execution through dispatcher (using a dummy task for now)
                 if let Some(task) = graph.nodes.get(&task_id).map(|n| n.task.clone()) {
-                    let _res = self.dispatcher.dispatch(&task).await;
+                    let assignment = crate::coordination::assignment::TaskAssignment::new(task);
+                    let mut dummy_context = crate::coordination::context::CoordinationContext::new();
+                    let _res = self.dispatcher.dispatch(&assignment, &mut dummy_context).await;
                     
                     // Simulate task finished
                     self.event_bus.publish(AgentEvent::TaskFinished(task_id, "Success".to_string()), context.mission.id.to_string());
