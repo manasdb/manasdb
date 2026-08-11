@@ -1,4 +1,3 @@
-use crate::types::{NodeKind, RelationshipKind};
 use crate::identity::NodeId;
 use super::filters::{EdgeFilter, NodeFilter, TemporalFilter};
 

@@ -1,5 +1,4 @@
-use crate::domain::{GraphNode, GraphEdge};
-use crate::types::{NodeKind, RelationshipKind};
+use crate::types::NodeKind;
 use crate::memory::snapshot::GraphSnapshot;
 
 use super::builder::GraphQueryBuilder;

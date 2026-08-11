@@ -1,6 +1,5 @@
 use crate::query::ast::GraphQuery;
 use crate::memory::snapshot::GraphSnapshot;
-use super::repository::GraphRepository;
 
 #[derive(Debug, Clone)]
 pub enum HydrationStrategy {

@@ -1,5 +1,4 @@
 use crate::domain::{GraphEdge, GraphNode};
-use crate::identity::NodeId;
 use crate::types::{NodeKind, RelationshipKind};
 use super::snapshot::GraphSnapshot;
 

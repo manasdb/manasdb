@@ -46,5 +46,5 @@ async fn test_telemetry_capture() {
     assert!(cog_res.execution_trace.duration_ms > 0);
     
     // The engine's result telemetry is in telemetry node output
-    assert!(cog_res.telemetry.total_tokens_used >= 0);
+
 }

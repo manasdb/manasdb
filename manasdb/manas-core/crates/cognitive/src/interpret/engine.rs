@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
 use crate::core::{CognitiveEngine, EngineResult, EngineMetadata, Warning};
-use crate::interpret::models::Fact;
 use crate::observe::models::Observation;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

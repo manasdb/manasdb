@@ -8,6 +8,7 @@ use super::errors::ReasoningError;
 use crate::knowledge::query::KnowledgeQueryService;
 
 pub struct DefaultReasoningEngine {
+    #[allow(dead_code)]
     query_service: Option<Box<dyn KnowledgeQueryService>>,
 }
 

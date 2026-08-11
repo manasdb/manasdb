@@ -1,12 +1,10 @@
 use crate::domain::{GraphEdge, GraphNode};
-use crate::identity::NodeId;
 use crate::types::{NodeKind, RelationshipKind};
 use crate::memory::snapshot::GraphSnapshot;
 
-use super::traversal::{neighbors, subgraph};
+use super::traversal::neighbors;
 use super::pathfinding::{shortest_path, reachable};
-use super::analytics::{degree, degree_centrality, connected_components};
-use super::integrity::{cycle_detection, orphan_detection, duplicate_detection};
+use super::integrity::cycle_detection;
 
 fn generate_random_snapshot(num_nodes: usize, num_edges: usize) -> GraphSnapshot {
     let mut nodes = Vec::with_capacity(num_nodes);

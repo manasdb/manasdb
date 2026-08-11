@@ -1,12 +1,12 @@
 use crate::identity::NodeId;
-use crate::domain::{GraphNode, GraphEdge};
-use crate::types::{NodeKind, RelationshipKind};
+use crate::domain::GraphNode;
+use crate::types::NodeKind;
 use crate::memory::snapshot::GraphSnapshot;
 
 use super::provider::SemanticProvider;
 use super::types::{SemanticVectorQuery, ModelSignature};
 use super::result::SemanticResult;
-use super::hybrid::{HybridQuery, FusionStrategy};
+use super::hybrid::FusionStrategy;
 
 use crate::query::builder::GraphQueryBuilder;
 use crate::query::planner::{QueryPlanner, ExecutionStrategy};

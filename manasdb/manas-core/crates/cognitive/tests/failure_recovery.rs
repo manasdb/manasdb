@@ -5,7 +5,7 @@ use std::time::Duration;
 use cognitive::orchestrator::CognitiveOrchestrator;
 use cognitive::registry::CapabilityRegistry;
 use cognitive::context::{WorkingMemory, FifoEvictionPolicy};
-use cognitive::workflow::{WorkflowBuilder, WorkflowNode, RetryPolicy, ExecutionOutcomeType};
+use cognitive::workflow::{WorkflowBuilder, WorkflowNode, RetryPolicy};
 use cognitive::core::traits::CapabilityId;
 use cognitive::core::types::Stimulus;
 use cognitive::salience::DefaultSalienceEngine;

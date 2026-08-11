@@ -8,7 +8,6 @@ use crate::interpret::Fact;
 use graph::identity::NodeId;
 use graph::memory::snapshot::GraphVersion;
 use graph::persistence::delta::GraphDelta;
-use std::sync::Arc;
 
 struct MockEntityResolver;
 impl EntityResolver for MockEntityResolver {

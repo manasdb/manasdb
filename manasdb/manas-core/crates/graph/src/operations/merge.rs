@@ -1,4 +1,4 @@
-use crate::domain::{GraphEdge, GraphNode, GraphProperty};
+use crate::domain::{GraphEdge, GraphNode};
 use crate::identity::{EdgeId, NodeId};
 use super::builder::GraphBuilder;
 
