@@ -2,6 +2,7 @@ pub mod capabilities;
 pub mod ids;
 pub mod lifecycle;
 pub mod metadata;
+pub mod orchestrator;
 pub mod models;
 pub mod validation;
 pub mod planning;
