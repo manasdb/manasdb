@@ -9,6 +9,10 @@ pub mod planning;
 pub mod scheduling;
 pub mod tools;
 pub mod coordination;
+pub mod cluster;
+pub mod network;
+pub mod telemetry;
+pub mod persistence;
 
 pub use capabilities::*;
 pub use ids::*;
